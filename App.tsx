@@ -4,7 +4,6 @@ import * as ImagePicker from 'expo-image-picker';
 import * as Linking from 'expo-linking';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { StatusBar } from 'expo-status-bar';
-import { getTextFromFrame } from 'expo-text-recognition';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator, Alert, FlatList, Modal, Platform, Pressable, SafeAreaView,
@@ -12,6 +11,7 @@ import {
 } from 'react-native';
 import { initializeDatabase, listItems, listQueueIds, removeItem, saveItem, saveQueueIds } from './src/lib/database';
 import { importDocument } from './src/lib/importers';
+import { recognizeImageText } from './src/lib/ocr';
 import { cleanText, countWords, detectLanguage, estimateSeconds, formatDuration, htmlToText, safePublicUrl, segmentSentences, suggestedTitle } from './src/lib/text';
 import { colors, radius, space, type } from './src/lib/theme';
 import { copy } from './src/lib/strings';
@@ -177,7 +177,7 @@ export default function App() {
     if (result.canceled) return;
     setIsPreparing(true);
     try {
-      const lines = await getTextFromFrame(result.assets[0].uri);
+      const lines = await recognizeImageText(result.assets[0].uri);
       const text = cleanText(lines.join('\n'));
       if (countWords(text) < 2) throw new Error('No readable text was found in that image.');
       const item = makeItem(text, 'document', source === 'camera' ? 'Scanned text' : 'Text from photo');
