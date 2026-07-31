@@ -2,13 +2,34 @@
   "expo": {
     "name": "Soundoc",
     "slug": "Soundoc",
+    "scheme": "soundoc",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
-    "userInterfaceStyle": "light",
+    "userInterfaceStyle": "automatic",
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "usesIcloudStorage": true,
+      "infoPlist": {
+        "UIBackgroundModes": ["audio"]
+      }
     },
+    "plugins": [
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Soundoc uses your photos only when you choose an image to turn into private listening text.",
+          "cameraPermission": "Soundoc uses the camera only when you choose to scan text into private listening text.",
+          "microphonePermission": false
+        }
+      ],
+      [
+        "expo-document-picker",
+        {
+          "iCloudContainerEnvironment": "Production"
+        }
+      ]
+    ],
     "android": {
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",

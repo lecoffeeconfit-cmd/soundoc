@@ -12,7 +12,13 @@ export function initializeDatabase() {
       progress REAL NOT NULL DEFAULT 0, selected_voice TEXT, rate REAL NOT NULL DEFAULT 1,
       pitch REAL NOT NULL DEFAULT 1, completed INTEGER NOT NULL DEFAULT 0
     );
-    CREATE INDEX IF NOT EXISTS library_items_recent_idx ON library_items(updated_at DESC);`);
+    CREATE INDEX IF NOT EXISTS library_items_recent_idx ON library_items(updated_at DESC);
+    CREATE TABLE IF NOT EXISTS queue_items (
+      library_item_id TEXT PRIMARY KEY NOT NULL,
+      position INTEGER NOT NULL,
+      created_at INTEGER NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS queue_items_position_idx ON queue_items(position);`);
 }
 
 function toItem(row: Record<string, unknown>): LibraryItem {
@@ -39,4 +45,18 @@ export function saveItem(item: LibraryItem) {
     item.rate, item.pitch, item.completed ? 1 : 0);
 }
 
-export function removeItem(id: string) { db.runSync('DELETE FROM library_items WHERE id = ?', id); }
+export function removeItem(id: string) {
+  db.runSync('DELETE FROM queue_items WHERE library_item_id = ?', id);
+  db.runSync('DELETE FROM library_items WHERE id = ?', id);
+}
+
+export function listQueueIds(): string[] {
+  return db.getAllSync<{ library_item_id: string }>('SELECT library_item_id FROM queue_items ORDER BY position ASC').map((row) => row.library_item_id);
+}
+
+export function saveQueueIds(ids: string[]) {
+  db.withTransactionSync(() => {
+    db.runSync('DELETE FROM queue_items');
+    ids.forEach((id, position) => db.runSync('INSERT INTO queue_items (library_item_id, position, created_at) VALUES (?, ?, ?)', id, position, Date.now()));
+  });
+}

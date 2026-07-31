@@ -15,7 +15,7 @@ export function useSpeechPlayer(onProgress: (item: LibraryItem) => void) {
       identifier: voice.identifier, name: voice.name || voice.identifier, language: voice.language,
       quality: voice.quality,
     })))).catch(() => setVoices([]));
-    return () => Speech.stop();
+    return () => { void Speech.stop(); };
   }, []);
 
   const commit = useCallback((next: LibraryItem, status?: PlayerState) => {
