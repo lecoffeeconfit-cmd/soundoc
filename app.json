@@ -1,7 +1,7 @@
 {
   "expo": {
     "name": "Soundoc",
-    "slug": "Soundoc",
+    "slug": "soundoc",
     "scheme": "soundoc",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -11,8 +11,14 @@
       "supportsTablet": true,
       "usesIcloudStorage": true,
       "infoPlist": {
-        "UIBackgroundModes": ["audio"]
-      }
+        "UIBackgroundModes": [
+          "audio",
+          "audio"
+        ],
+        "ITSAppUsesNonExemptEncryption": false
+      },
+      "bundleIdentifier": "com.lecoffeeconfit.soundoc",
+      "buildNumber": "1"
     },
     "plugins": [
       [
@@ -41,6 +47,11 @@
     },
     "web": {
       "favicon": "./assets/favicon.png"
+    },
+    "extra": {
+      "eas": {
+        "projectId": "6e90fa35-e060-4749-9663-b1a122f81fe1"
+      }
     }
   }
 }
