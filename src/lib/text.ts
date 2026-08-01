@@ -11,6 +11,45 @@ export function cleanText(input: string): string {
     .trim();
 }
 
+/** Removes reference-list tails and citation-control rows from article text.
+ * Manual notes are left untouched; callers should use this only for article-like sources. */
+export function removeArticleReferenceNoise(input: string): string {
+  const lines = cleanText(input).split(/\n+/).map((line) => line.trim()).filter(Boolean);
+  const headingIndex = lines.findIndex((line, index) => index > 2 && /^(?:references|bibliography|literature cited|works cited)$/i.test(line));
+  const body = headingIndex >= 0 ? lines.slice(0, headingIndex) : lines;
+  return cleanText(body.filter((line) => !/^\[?\s*(?:doi|pubmed|google scholar|pdf|cite|collections?|permalink|view on publisher site)\s*\]?$/i.test(line) && !/^\d{1,4}[.)]?$/.test(line)).join('\n\n'));
+}
+
+export type RemovedSegment = { text: string; reason: 'DOI' | 'Database identifier' | 'Bibliographic metadata' | 'Long code sequence' | 'Reference-only number line' };
+
+const identifierToken = /\b(?:doi\s*:\s*)?(?:10\.\d{4,9}\/[-._;()/:A-Z0-9]+|PMID\s*:?\s*\d{6,}|PMCID\s*:?\s*PMC\d{6,}|ISSN\s*:?\s*\d{4}[-–]\d{3}[\dX]|ISBN(?:-\d)?\s*:?\s*(?:97[89][\d-]{10,}|\d[\d-]{9,})|ORCID\s*:?\s*\d{4}-\d{4}-\d{4}-\d{4}|arXiv\s*:?\s*\d{4}\.\d{4,5}(?:v\d+)?|NCT\d{8}|[0-9a-f]{8}-[0-9a-f-]{27,}|[A-Z0-9]{2,}[/-][A-Z0-9()/-]{7,})\b/gi;
+
+function likelyBibliographicLine(line: string) {
+  return /^(?:\d{4};\d{1,4}:\d{1,5}[-–]\d{1,5}|\d{4};\d{1,4}\s*:\s*\d{1,5}[-–]\d{1,5})\.?$/.test(line.trim()) || /^(?:\[?\s*(?:doi|pmid|pmcid|isbn|issn|orcid|arxiv|pubmed|google scholar|crossref|citation|volume|issue|pages?)\s*\]?\s*)+$/i.test(line.trim());
+}
+
+function likelyCodeLine(line: string) {
+  const value = line.trim(); const digitCount = (value.match(/\d/g) ?? []).length; const letters = (value.match(/[A-Za-z]/g) ?? []).length; const separators = (value.match(/[\/:;()._-]/g) ?? []).length; const ordinaryWords = value.split(/\s+/).filter((word) => /[A-Za-z]{3,}/.test(word)).length;
+  if (value.length < 9 || ordinaryWords > 5 || digitCount < 4) return false;
+  return separators >= 1 && (digitCount + separators >= 7 || digitCount / Math.max(1, letters) > 0.75);
+}
+
+/** Applies the conservative speech-only long-number/code rule. */
+export function filterLongNumbersAndCodes(text: string, options: { enabled: boolean }): { spokenText: string; removedSegments: RemovedSegment[] } {
+  if (!options.enabled) return { spokenText: text, removedSegments: [] };
+  const removedSegments: RemovedSegment[] = [];
+  const spokenLines = cleanText(text).split(/\n+/).map((rawLine) => {
+    const line = rawLine.trim(); if (!line) return '';
+    if (/^\d{3,}[.)]?$/.test(line)) { removedSegments.push({ text: line, reason: 'Reference-only number line' }); return ''; }
+    if (likelyBibliographicLine(line)) { removedSegments.push({ text: line, reason: 'Bibliographic metadata' }); return ''; }
+    if (likelyCodeLine(line)) { removedSegments.push({ text: line, reason: identifierToken.test(line) && /doi|pmid|pmcid|issn|isbn|orcid|arxiv|nct/i.test(line) ? 'Database identifier' : 'Long code sequence' }); identifierToken.lastIndex = 0; return ''; }
+    const replaced = line.replace(identifierToken, (match) => { const reason: RemovedSegment['reason'] = /^\s*10\./i.test(match) || /doi/i.test(match) ? 'DOI' : /^(?:\s*(?:19|20)\d{2};|\s*\d{4};)/.test(match) ? 'Bibliographic metadata' : 'Database identifier'; removedSegments.push({ text: match, reason }); return ''; });
+    identifierToken.lastIndex = 0;
+    return replaced.replace(/\s{2,}/g, ' ').replace(/\s+([,.;])/g, '$1').trim();
+  }).filter(Boolean);
+  return { spokenText: cleanText(spokenLines.join('\n\n')), removedSegments };
+}
+
 export function htmlToText(html: string): string {
   const withoutNoise = html
     .replace(/<script[\s\S]*?<\/script>|<style[\s\S]*?<\/style>|<noscript[\s\S]*?<\/noscript>/gi, '')

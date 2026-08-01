@@ -1,0 +1,17 @@
+import { useCallback, useMemo } from 'react';
+import { PanResponder, Pressable, StyleSheet, Text, Vibration, View } from 'react-native';
+import { colors, radius, shadows, type } from '../lib/theme';
+
+export function SegmentedControlDial({ value, segments = 4, onChange, label = 'Playback progress' }: { value: number; segments?: number; onChange: (value: number) => void; label?: string }) {
+  const activeCount = Math.ceil(Math.max(0, Math.min(100, value)) / (100 / segments));
+  const select = useCallback((index: number) => { Vibration.vibrate(8); onChange(Math.round(((index + 1) / segments) * 100)); }, [onChange, segments]);
+  const adjust = useCallback((amount: number) => { const next = Math.max(0, Math.min(100, value + amount)); Vibration.vibrate(8); onChange(next); }, [onChange, value]);
+  const panResponder = useMemo(() => PanResponder.create({ onStartShouldSetPanResponder: () => false, onMoveShouldSetPanResponder: (_, gesture) => Math.abs(gesture.dx) > 8 || Math.abs(gesture.dy) > 8, onPanResponderRelease: (_, gesture) => { if (Math.abs(gesture.dx) > 8) adjust(gesture.dx > 0 ? 25 : -25); } }), [adjust]);
+  return <View accessibilityRole="adjustable" accessibilityLabel={label} accessibilityValue={{ min: 0, max: 100, now: Math.round(value) }} accessibilityActions={[{ name: 'increment' }, { name: 'decrement' }]} onAccessibilityAction={(event) => adjust(event.nativeEvent.actionName === 'increment' ? 25 : -25)} style={styles.wrap}><View {...panResponder.panHandlers} style={styles.housing}>{Array.from({ length: segments }, (_, index) => <Pressable key={index} onPress={() => select(index)} accessibilityRole="button" accessibilityLabel={`Jump to ${Math.round(((index + 1) / segments) * 100)} percent`} style={[styles.segment, segmentStyles[index % segmentStyles.length], index < activeCount && styles.segmentActive]} />)}<View style={styles.center}><Text style={styles.centerValue}>{Math.round(value)}%</Text><Text style={styles.centerCaption}>LISTENED</Text></View></View></View>;
+}
+
+const segmentStyles = [{ top: 16, left: 77 }, { top: 77, right: 16, transform: [{ rotate: '90deg' }] }, { bottom: 16, left: 77, transform: [{ rotate: '180deg' }] }, { top: 77, left: 16, transform: [{ rotate: '270deg' }] }] as const;
+const styles = StyleSheet.create({
+  wrap: { alignItems: 'center', justifyContent: 'center' }, housing: { width: 214, height: 214, borderRadius: 107, backgroundColor: colors.surfaceInset, borderWidth: 12, borderColor: colors.surfaceElevated, ...shadows.raised, position: 'relative' },
+  segment: { position: 'absolute', width: 44, height: 70, borderRadius: 22, backgroundColor: colors.surfacePrimary, borderWidth: 1, borderTopColor: 'rgba(255,255,255,0.08)', borderBottomColor: 'rgba(0,0,0,0.55)' }, segmentActive: { backgroundColor: colors.accentPrimary, borderColor: '#B64527', shadowColor: colors.accentPrimary, shadowOpacity: 0.42, shadowRadius: 15, shadowOffset: { width: 0, height: 0 }, elevation: 7 }, center: { position: 'absolute', width: 98, height: 98, top: 46, left: 46, borderRadius: 49, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surfaceElevated, borderWidth: 1, borderTopColor: 'rgba(255,255,255,0.13)', borderBottomColor: 'rgba(0,0,0,0.7)', ...shadows.floating }, centerValue: { ...type.title, color: colors.textPrimary, fontSize: 22 }, centerCaption: { ...type.caption, color: colors.textTertiary, fontSize: 9, letterSpacing: 0.8, marginTop: 2 },
+});
