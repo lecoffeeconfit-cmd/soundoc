@@ -64,7 +64,8 @@ export type Folder = { id: string; name: string; createdAt: number; updatedAt: n
 
 export type Voice = { identifier: string; name: string; language: string; quality?: string };
 
-export type ListeningModeId = 'smart' | 'natural' | 'storyteller' | 'deepNarrator' | 'newsreader' | 'studyFocus' | 'fastScan' | 'slowClear' | 'relaxed' | 'sleepReading' | 'highClarity' | 'custom';
+/** Canonical mode IDs plus legacy aliases kept so existing saved preferences continue to load. */
+export type ListeningModeId = 'recommended' | 'natural' | 'study' | 'quickPreview' | 'deepFocus' | 'news' | 'storytelling' | 'slowClear' | 'relaxed' | 'sleep' | 'custom' | 'smart' | 'studyFocus' | 'fastScan' | 'deepNarrator' | 'newsreader' | 'storyteller' | 'sleepReading' | 'highClarity';
 export type SmartClassification = 'scientific' | 'technical' | 'educational' | 'news' | 'story' | 'legal' | 'general' | 'shortForm';
 
 export type PronunciationRule = {
@@ -73,6 +74,26 @@ export type PronunciationRule = {
   replacement: string;
   enabled: boolean;
   caseSensitive: boolean;
+};
+
+export type CustomListeningProfile = {
+  rate: number;
+  pitch: number;
+  volume: number;
+  sentencePauseMs: number;
+  paragraphPauseMs: number;
+  headingPauseMs?: number;
+  skipHeadings?: boolean;
+  skipUrls?: boolean;
+  skipCitations?: boolean;
+  skipConsecutiveDuplicates?: boolean;
+  skipLongNumbersAndCodes?: boolean;
+  skipReferenceSection?: boolean;
+  skipSiteBoilerplate?: boolean;
+  skipNavigationAndAds?: boolean;
+  skipSharingControls?: boolean;
+  skipRelatedStories?: boolean;
+  skipDatabaseIdentifiers?: boolean;
 };
 
 export type SpeechPreferences = {
@@ -96,6 +117,26 @@ export type SpeechPreferences = {
   recentVoiceIds: string[];
   adaptiveListeningEnabled?: boolean;
   skipLongNumbersAndCodes?: boolean;
+  skipSiteBoilerplate?: boolean;
+  skipNavigationAndAds?: boolean;
+  skipSharingControls?: boolean;
+  skipRelatedStories?: boolean;
+  skipDatabaseIdentifiers?: boolean;
+  preserveHeadings?: boolean;
+  preserveDefinitions?: boolean;
+  preserveMeaningfulNumbers?: boolean;
+  preserveStatistics?: boolean;
+  preserveMeasurements?: boolean;
+  preserveDialogue?: boolean;
+  preserveDatesAndStatistics?: boolean;
+  /** Applies the local, coordinated Soundoc Recommended profile without erasing custom values. */
+  recommendedListening?: boolean;
+  /** Used by the speech-only chunk pipeline for longer pauses after headings. */
+  headingPauseMs?: number;
+  /** Removes a References/Bibliography tail from speech only. */
+  skipReferenceSection?: boolean;
+  /** Last manually configured values, preserved while a predefined mode is selected. */
+  customProfile?: CustomListeningProfile;
 };
 
 export type Playlist = { id: string; name: string; createdAt: number; updatedAt: number; itemIds: string[] };

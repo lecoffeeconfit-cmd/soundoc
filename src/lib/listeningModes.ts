@@ -1,42 +1,73 @@
 import type { LibraryItem, ListeningModeId, SmartClassification, SpeechPreferences } from '../types';
 
+/** The mode catalog is the single source of truth for values shown in Settings and used by speech. */
 export type ListeningModeProfile = {
-  id: ListeningModeId;
+  id: Exclude<ListeningModeId, 'smart' | 'studyFocus' | 'fastScan' | 'deepNarrator' | 'newsreader' | 'storyteller' | 'sleepReading' | 'highClarity'>;
   name: string;
   description: string;
+  useLabel: string;
   icon: string;
   rate: number;
   pitch: number;
   volume: number;
   sentencePauseMs: number;
   paragraphPauseMs: number;
-  readingRules?: Partial<Pick<SpeechPreferences, 'skipUrls' | 'skipCitations' | 'skipHeadings' | 'skipConsecutiveDuplicates'>>;
+  headingPauseMs: number;
+  readingRules: Partial<Pick<SpeechPreferences, 'skipSiteBoilerplate' | 'skipNavigationAndAds' | 'skipSharingControls' | 'skipRelatedStories' | 'skipDatabaseIdentifiers' | 'skipUrls' | 'skipCitations' | 'skipHeadings' | 'skipConsecutiveDuplicates' | 'skipLongNumbersAndCodes' | 'skipReferenceSection' | 'preserveHeadings' | 'preserveDefinitions' | 'preserveMeaningfulNumbers' | 'preserveStatistics' | 'preserveMeasurements' | 'preserveDialogue' | 'preserveDatesAndStatistics'>>;
 };
 
-const profile = (value: Omit<ListeningModeProfile, 'icon'> & { icon?: string }): ListeningModeProfile => ({ icon: '◌', ...value });
+const defaultModeRules: ListeningModeProfile['readingRules'] = { skipSiteBoilerplate: false, skipNavigationAndAds: false, skipSharingControls: false, skipRelatedStories: false, skipDatabaseIdentifiers: false, skipUrls: false, skipCitations: false, skipHeadings: false, skipConsecutiveDuplicates: true, skipLongNumbersAndCodes: false, skipReferenceSection: false, preserveHeadings: true };
+const profile = (value: Omit<ListeningModeProfile, 'icon'> & { icon?: string }): ListeningModeProfile => ({ icon: '◌', ...value, readingRules: value.id === 'custom' ? (value.readingRules ?? {}) : { ...defaultModeRules, ...value.readingRules } });
 
 export const LISTENING_MODE_PROFILES: readonly ListeningModeProfile[] = [
-  profile({ id: 'smart', name: 'Smart', description: 'Automatically adjusts pacing and reading rules for the current content.', rate: 1, pitch: 1, volume: 1, sentencePauseMs: 300, paragraphPauseMs: 650, icon: '✦' }),
-  profile({ id: 'natural', name: 'Natural', description: 'Balanced for everyday articles and documents.', rate: 1, pitch: 1, volume: 1, sentencePauseMs: 250, paragraphPauseMs: 600, icon: '◉' }),
-  profile({ id: 'storyteller', name: 'Storyteller', description: 'A relaxed pace for stories, biographies, and long-form reading.', rate: 0.92, pitch: 0.96, volume: 1, sentencePauseMs: 400, paragraphPauseMs: 900, icon: '⌁' }),
-  profile({ id: 'studyFocus', name: 'Study Focus', description: 'Deliberate pacing for research, textbooks, and learning material.', rate: 0.95, pitch: 1, volume: 1, sentencePauseMs: 350, paragraphPauseMs: 750, readingRules: { skipUrls: true, skipCitations: true, skipConsecutiveDuplicates: true }, icon: '▤' }),
-  profile({ id: 'fastScan', name: 'Fast Scan', description: 'Quickly review long articles and documents.', rate: 1.5, pitch: 1, volume: 1, sentencePauseMs: 100, paragraphPauseMs: 250, readingRules: { skipUrls: true, skipCitations: true, skipConsecutiveDuplicates: true }, icon: '»' }),
-  profile({ id: 'sleepReading', name: 'Sleep Reading', description: 'A quiet, gentle pace for bedtime listening.', rate: 0.72, pitch: 0.82, volume: 0.55, sentencePauseMs: 600, paragraphPauseMs: 1300, readingRules: { skipUrls: true, skipCitations: true }, icon: '☾' }),
-  profile({ id: 'deepNarrator', name: 'Deep Narrator', description: 'A deeper, slower presentation for serious long-form content.', rate: 0.88, pitch: 0.78, volume: 1, sentencePauseMs: 350, paragraphPauseMs: 800, icon: '◒' }),
-  profile({ id: 'newsreader', name: 'Newsreader', description: 'A steady, efficient pace for news and informational articles.', rate: 1.1, pitch: 0.98, volume: 1, sentencePauseMs: 180, paragraphPauseMs: 450, icon: '▥' }),
-  profile({ id: 'slowClear', name: 'Slow & Clear', description: 'Slower speech and longer pauses for difficult material.', rate: 0.75, pitch: 0.95, volume: 1, sentencePauseMs: 500, paragraphPauseMs: 1000, icon: '◐' }),
-  profile({ id: 'relaxed', name: 'Relaxed', description: 'Comfortable pacing for casual listening.', rate: 0.85, pitch: 0.88, volume: 0.9, sentencePauseMs: 450, paragraphPauseMs: 950, icon: '≈' }),
-  profile({ id: 'highClarity', name: 'High Clarity', description: 'Maximum intelligibility with deliberate pacing.', rate: 0.82, pitch: 1.03, volume: 1, sentencePauseMs: 450, paragraphPauseMs: 900, readingRules: { skipUrls: true, skipCitations: true, skipConsecutiveDuplicates: true }, icon: '⊙' }),
+  profile({ id: 'recommended', name: 'Soundoc Recommended', description: 'Best overall settings for clear, podcast-like listening.', useLabel: 'Best overall', icon: '✦', rate: 0.96, pitch: 1, volume: 1, sentencePauseMs: 260, paragraphPauseMs: 650, headingPauseMs: 850, readingRules: { skipSiteBoilerplate: true, skipNavigationAndAds: true, skipCitations: true, skipLongNumbersAndCodes: true, skipDatabaseIdentifiers: true, skipUrls: true, skipConsecutiveDuplicates: true, skipReferenceSection: true, preserveHeadings: true, preserveMeaningfulNumbers: true, preserveStatistics: true, preserveMeasurements: true } }),
+  profile({ id: 'natural', name: 'Natural', description: 'Balanced everyday listening with minimal processing.', useLabel: 'Everyday', icon: '◉', rate: 1, pitch: 1, volume: 1, sentencePauseMs: 220, paragraphPauseMs: 550, headingPauseMs: 750, readingRules: { skipSiteBoilerplate: true, skipNavigationAndAds: true, skipUrls: true, skipConsecutiveDuplicates: true, preserveHeadings: true } }),
+  profile({ id: 'study', name: 'Study & Learn', description: 'Deliberate pacing for textbooks, research, and material you want to remember.', useLabel: 'Learning', icon: '▤', rate: 0.88, pitch: 1, volume: 1, sentencePauseMs: 380, paragraphPauseMs: 850, headingPauseMs: 1050, readingRules: { skipSiteBoilerplate: true, skipNavigationAndAds: true, skipCitations: true, skipLongNumbersAndCodes: true, skipDatabaseIdentifiers: true, skipUrls: true, skipConsecutiveDuplicates: true, skipReferenceSection: true, preserveHeadings: true, preserveDefinitions: true, preserveStatistics: true, preserveMeasurements: true, preserveMeaningfulNumbers: true } }),
+  profile({ id: 'quickPreview', name: 'Quick Preview', description: 'Rapidly scan an article or document before deciding whether to read it fully.', useLabel: 'Previewing', icon: '»', rate: 1.55, pitch: 1, volume: 1, sentencePauseMs: 80, paragraphPauseMs: 220, headingPauseMs: 400, readingRules: { skipSiteBoilerplate: true, skipNavigationAndAds: true, skipCitations: true, skipLongNumbersAndCodes: true, skipDatabaseIdentifiers: true, skipUrls: true, skipConsecutiveDuplicates: true, skipReferenceSection: true, preserveHeadings: true } }),
+  profile({ id: 'deepFocus', name: 'Deep Focus', description: 'Steady, distraction-free listening for long work or study sessions.', useLabel: 'Long sessions', icon: '◒', rate: 0.92, pitch: 0.96, volume: 0.95, sentencePauseMs: 300, paragraphPauseMs: 700, headingPauseMs: 900, readingRules: { skipSiteBoilerplate: true, skipNavigationAndAds: true, skipCitations: true, skipLongNumbersAndCodes: true, skipUrls: true, skipConsecutiveDuplicates: true, skipReferenceSection: true, preserveHeadings: true } }),
+  profile({ id: 'news', name: 'News & Articles', description: 'A clear, efficient newsreader pace for articles and current information.', useLabel: 'News', icon: '▥', rate: 1.1, pitch: 0.98, volume: 1, sentencePauseMs: 170, paragraphPauseMs: 430, headingPauseMs: 650, readingRules: { skipSiteBoilerplate: true, skipNavigationAndAds: true, skipSharingControls: true, skipRelatedStories: true, skipCitations: true, skipLongNumbersAndCodes: true, skipUrls: true, skipConsecutiveDuplicates: true, preserveHeadings: true, preserveDatesAndStatistics: true } }),
+  profile({ id: 'storytelling', name: 'Storytelling', description: 'A relaxed pace for fiction, biographies, essays, and narrative content.', useLabel: 'Stories', icon: '⌁', rate: 0.9, pitch: 0.96, volume: 1, sentencePauseMs: 360, paragraphPauseMs: 900, headingPauseMs: 1050, readingRules: { skipSiteBoilerplate: true, skipNavigationAndAds: true, skipUrls: true, skipConsecutiveDuplicates: false, skipCitations: false, skipReferenceSection: false, preserveHeadings: true, preserveDialogue: true } }),
+  profile({ id: 'slowClear', name: 'Slow & Clear', description: 'Maximum intelligibility for difficult material or slower listening.', useLabel: 'Accessibility', icon: '◐', rate: 0.72, pitch: 1, volume: 1, sentencePauseMs: 520, paragraphPauseMs: 1100, headingPauseMs: 1300, readingRules: { skipSiteBoilerplate: true, skipNavigationAndAds: true, skipCitations: true, skipLongNumbersAndCodes: true, skipUrls: true, skipConsecutiveDuplicates: true, preserveHeadings: true, preserveMeaningfulNumbers: true } }),
+  profile({ id: 'relaxed', name: 'Relaxed', description: 'Comfortable casual listening with softer pacing.', useLabel: 'Casual', icon: '≈', rate: 0.84, pitch: 0.9, volume: 0.88, sentencePauseMs: 420, paragraphPauseMs: 950, headingPauseMs: 1100, readingRules: { skipSiteBoilerplate: true, skipNavigationAndAds: true, skipCitations: true, skipLongNumbersAndCodes: true, skipUrls: true, skipConsecutiveDuplicates: true, skipReferenceSection: true, preserveHeadings: true } }),
+  profile({ id: 'sleep', name: 'Sleep', description: 'A quiet, gentle pace for bedtime listening.', useLabel: 'Bedtime', icon: '☾', rate: 0.7, pitch: 0.84, volume: 0.55, sentencePauseMs: 600, paragraphPauseMs: 1350, headingPauseMs: 1500, readingRules: { skipSiteBoilerplate: true, skipNavigationAndAds: true, skipCitations: true, skipLongNumbersAndCodes: true, skipDatabaseIdentifiers: true, skipUrls: true, skipConsecutiveDuplicates: true, skipReferenceSection: true, preserveHeadings: true } }),
 ];
 
-export const CUSTOM_MODE_PROFILE: ListeningModeProfile = profile({ id: 'custom', name: 'Custom', description: 'Your own saved combination of speed, pitch, pauses, and reading rules.', rate: 1, pitch: 1, volume: 1, sentencePauseMs: 300, paragraphPauseMs: 650, icon: '⚙' });
+export const CUSTOM_MODE_PROFILE: ListeningModeProfile = profile({ id: 'custom', name: 'Custom', description: 'Your manually selected listening settings.', useLabel: 'Your settings', icon: '⚙', rate: 1, pitch: 1, volume: 1, sentencePauseMs: 300, paragraphPauseMs: 650, headingPauseMs: 850, readingRules: {} });
 
-export function getListeningModeProfile(id: ListeningModeId, preferences?: SpeechPreferences): ListeningModeProfile {
-  if (id === 'custom') return preferences ? { ...CUSTOM_MODE_PROFILE, rate: preferences.rate, pitch: preferences.pitch, volume: preferences.volume, sentencePauseMs: preferences.sentencePauseMs, paragraphPauseMs: preferences.paragraphPauseMs, readingRules: rulesFromPreferences(preferences) } : CUSTOM_MODE_PROFILE;
-  return LISTENING_MODE_PROFILES.find((entry) => entry.id === id) ?? LISTENING_MODE_PROFILES[1];
+/** Maps IDs written by older Soundoc versions to the current catalog. */
+export function normalizeListeningModeId(id?: ListeningModeId | string): ListeningModeId {
+  switch (id) {
+    case 'smart': return 'recommended';
+    case 'studyFocus': return 'study';
+    case 'fastScan': return 'quickPreview';
+    case 'deepNarrator': return 'deepFocus';
+    case 'newsreader': return 'news';
+    case 'storyteller': return 'storytelling';
+    case 'sleepReading': return 'sleep';
+    case 'highClarity': return 'slowClear';
+    case 'recommended': case 'natural': case 'study': case 'quickPreview': case 'deepFocus': case 'news': case 'storytelling': case 'slowClear': case 'relaxed': case 'sleep': case 'custom': return id;
+    default: return 'recommended';
+  }
 }
 
-function rulesFromPreferences(preferences: SpeechPreferences) { return { skipUrls: preferences.skipUrls, skipCitations: preferences.skipCitations, skipHeadings: preferences.skipHeadings, skipConsecutiveDuplicates: preferences.skipConsecutiveDuplicates }; }
+export function modeProfileFor(id: ListeningModeId | string | undefined, preferences?: SpeechPreferences): ListeningModeProfile {
+  const normalized = normalizeListeningModeId(id);
+  if (normalized === 'custom') {
+    const source = preferences?.customProfile ?? preferences;
+    return { ...CUSTOM_MODE_PROFILE, rate: source?.rate ?? CUSTOM_MODE_PROFILE.rate, pitch: source?.pitch ?? CUSTOM_MODE_PROFILE.pitch, volume: source?.volume ?? CUSTOM_MODE_PROFILE.volume, sentencePauseMs: source?.sentencePauseMs ?? CUSTOM_MODE_PROFILE.sentencePauseMs, paragraphPauseMs: source?.paragraphPauseMs ?? CUSTOM_MODE_PROFILE.paragraphPauseMs, headingPauseMs: source?.headingPauseMs ?? CUSTOM_MODE_PROFILE.headingPauseMs, readingRules: source ? rulesFromPreferences(source) : {} };
+  }
+  return LISTENING_MODE_PROFILES.find((entry) => entry.id === normalized) ?? LISTENING_MODE_PROFILES[0];
+}
+
+export const getListeningModeProfile = modeProfileFor;
+
+function rulesFromPreferences(preferences: Partial<Pick<SpeechPreferences, 'skipSiteBoilerplate' | 'skipNavigationAndAds' | 'skipSharingControls' | 'skipRelatedStories' | 'skipDatabaseIdentifiers' | 'skipUrls' | 'skipCitations' | 'skipHeadings' | 'skipConsecutiveDuplicates' | 'skipLongNumbersAndCodes' | 'skipReferenceSection' | 'preserveHeadings' | 'preserveDefinitions' | 'preserveMeaningfulNumbers' | 'preserveStatistics' | 'preserveMeasurements' | 'preserveDialogue' | 'preserveDatesAndStatistics'>>): ListeningModeProfile['readingRules'] {
+  return { skipSiteBoilerplate: preferences.skipSiteBoilerplate, skipNavigationAndAds: preferences.skipNavigationAndAds, skipSharingControls: preferences.skipSharingControls, skipRelatedStories: preferences.skipRelatedStories, skipDatabaseIdentifiers: preferences.skipDatabaseIdentifiers, skipUrls: preferences.skipUrls, skipCitations: preferences.skipCitations, skipHeadings: preferences.skipHeadings, skipConsecutiveDuplicates: preferences.skipConsecutiveDuplicates, skipLongNumbersAndCodes: preferences.skipLongNumbersAndCodes, skipReferenceSection: preferences.skipReferenceSection, preserveHeadings: preferences.preserveHeadings, preserveDefinitions: preferences.preserveDefinitions, preserveMeaningfulNumbers: preferences.preserveMeaningfulNumbers, preserveStatistics: preferences.preserveStatistics, preserveMeasurements: preferences.preserveMeasurements, preserveDialogue: preferences.preserveDialogue, preserveDatesAndStatistics: preferences.preserveDatesAndStatistics };
+}
+
+export function recommendedProfileFor(item?: Pick<LibraryItem, 'type' | 'title' | 'text' | 'source' | 'wordCount'> | null): ListeningModeProfile & { classification: SmartClassification } {
+  return { ...modeProfileFor('recommended'), classification: classifyDocument(item) };
+}
 
 export function classifyDocument(item?: Pick<LibraryItem, 'type' | 'title' | 'text' | 'source' | 'wordCount'> | null): SmartClassification {
   if (!item || !item.text?.trim()) return 'general';
@@ -52,21 +83,20 @@ export function classifyDocument(item?: Pick<LibraryItem, 'type' | 'title' | 'te
   return 'general';
 }
 
-export function smartProfileFor(item?: Pick<LibraryItem, 'type' | 'title' | 'text' | 'source' | 'wordCount'> | null): ListeningModeProfile & { classification: SmartClassification } {
-  const classification = classifyDocument(item);
-  const modeId: ListeningModeId = classification === 'scientific' || classification === 'technical' ? 'deepNarrator' : classification === 'educational' ? 'studyFocus' : classification === 'news' ? 'newsreader' : classification === 'story' ? 'storyteller' : classification === 'legal' ? 'slowClear' : 'natural';
-  return { ...getListeningModeProfile(modeId), classification };
+/** Legacy Smart remains available to callers, but resolves to the fixed Recommended profile. */
+export function smartProfileFor(item?: Pick<LibraryItem, 'type' | 'title' | 'text' | 'source' | 'wordCount'> | null) {
+  return { ...modeProfileFor('recommended'), classification: classifyDocument(item) };
 }
 
 export function resolveSpeechPreferences(preferences: SpeechPreferences, item?: LibraryItem | null): SpeechPreferences {
-  if (preferences.modeId !== 'smart') return preferences;
-  const resolved = smartProfileFor(item);
-  return { ...preferences, smartClassification: resolved.classification, rate: resolved.rate, pitch: resolved.pitch, volume: resolved.volume, sentencePauseMs: resolved.sentencePauseMs, paragraphPauseMs: resolved.paragraphPauseMs, ...resolved.readingRules };
+  const id = preferences.recommendedListening ? 'recommended' : normalizeListeningModeId(preferences.modeId);
+  const resolved = modeProfileFor(id, preferences);
+  return { ...preferences, modeId: id, smartClassification: id === 'recommended' ? classifyDocument(item) : preferences.smartClassification, rate: resolved.rate, pitch: resolved.pitch, volume: resolved.volume, sentencePauseMs: resolved.sentencePauseMs, paragraphPauseMs: resolved.paragraphPauseMs, headingPauseMs: resolved.headingPauseMs, ...resolved.readingRules, recommendedListening: id === 'recommended' };
 }
 
 export function modeSummary(preferences: SpeechPreferences, item?: LibraryItem | null) {
-  if (preferences.modeId === 'smart') return `Smart · ${classificationLabel(preferences.smartClassification ?? smartProfileFor(item).classification)}`;
-  return getListeningModeProfile(preferences.modeId, preferences).name;
+  const id = preferences.recommendedListening ? 'recommended' : normalizeListeningModeId(preferences.modeId);
+  return modeProfileFor(id, preferences).name;
 }
 
 export function classificationLabel(classification: SmartClassification) { return classification === 'shortForm' ? 'Short form' : classification.charAt(0).toUpperCase() + classification.slice(1); }

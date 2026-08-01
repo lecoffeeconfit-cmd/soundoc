@@ -10,10 +10,25 @@ import { removeArticleReferenceNoise } from '../lib/text';
 import type { LibraryItem, PlayerState, SpeechPreferences, Voice } from '../types';
 
 const fallbackPreferences: SpeechPreferences = {
-  presetId: 'natural', modeId: 'natural', rate: 1, pitch: 1, volume: 1, sentencePauseMs: 300, paragraphPauseMs: 650,
-  pronunciationRules: [], skipHeadings: false, skipUrls: false, skipCitations: false,
-  skipConsecutiveDuplicates: true, favoriteVoiceIds: [], recentVoiceIds: [], adaptiveListeningEnabled: false, skipLongNumbersAndCodes: true,
+  presetId: 'recommended', modeId: 'recommended', rate: 0.96, pitch: 1, volume: 1, sentencePauseMs: 260, paragraphPauseMs: 650, headingPauseMs: 850,
+  pronunciationRules: [], skipHeadings: false, skipUrls: true, skipCitations: true, skipSiteBoilerplate: true, skipNavigationAndAds: true,
+  skipConsecutiveDuplicates: true, favoriteVoiceIds: [], recentVoiceIds: [], adaptiveListeningEnabled: false, skipLongNumbersAndCodes: true, skipReferenceSection: true, recommendedListening: true,
 };
+
+function recommendedVoiceFor(voices: Voice[], language: string, selectedIdentifier?: string) {
+  if (selectedIdentifier && voices.some((voice) => voice.identifier === selectedIdentifier)) return selectedIdentifier;
+  const baseLanguage = language.split('-')[0].toLowerCase();
+  const compatible = voices.filter((voice) => voice.language.toLowerCase() === language.toLowerCase() || voice.language.toLowerCase().startsWith(`${baseLanguage}-`));
+  const sorted = [...compatible].sort((a, b) => {
+    const exactA = a.language.toLowerCase() === language.toLowerCase() ? 0 : 1;
+    const exactB = b.language.toLowerCase() === language.toLowerCase() ? 0 : 1;
+    if (exactA !== exactB) return exactA - exactB;
+    const enhancedA = /enhanced|premium/i.test(a.quality ?? '') ? 0 : 1;
+    const enhancedB = /enhanced|premium/i.test(b.quality ?? '') ? 0 : 1;
+    return enhancedA - enhancedB || a.name.localeCompare(b.name);
+  });
+  return sorted[0]?.identifier;
+}
 
 export function useSpeechPlayer(onProgress: (item: LibraryItem) => void, preferences: SpeechPreferences = fallbackPreferences) {
   const [item, setItem] = useState<LibraryItem | null>(null);
@@ -81,7 +96,7 @@ export function useSpeechPlayer(onProgress: (item: LibraryItem) => void, prefere
     const next = { ...current, ...position, progress: chunks.length ? chunkIndex.current / chunks.length : 0, updatedAt: Date.now() };
     commit(next, 'playing');
     void recordListening(chunks[chunkIndex.current].text.trim().split(/\s+/).filter(Boolean).length, chunks[chunkIndex.current].text.trim().split(/\s+/).filter(Boolean).length * 0.42 / Math.max(0.1, currentPreferences.rate), currentPreferences.rate);
-    const selectedVoice = next.selectedVoice && voices.some((voice) => voice.identifier === next.selectedVoice) ? next.selectedVoice : undefined;
+    const selectedVoice = currentPreferences.recommendedListening ? recommendedVoiceFor(voices, next.language, preferencesRef.current.voiceIdentifier ?? next.selectedVoice) : (next.selectedVoice && voices.some((voice) => voice.identifier === next.selectedVoice) ? next.selectedVoice : undefined);
     speechActive.current = true;
     Speech.speak(chunks[chunkIndex.current].text, {
       language: next.language, voice: selectedVoice, rate: Math.min(2, Math.max(0.1, currentPreferences.rate)),
@@ -143,13 +158,23 @@ export function useSpeechPlayer(onProgress: (item: LibraryItem) => void, prefere
   const jump = useCallback((delta: number) => { const session = cancelSpeech(); speak(Math.max(0, chunkIndex.current + delta), session); }, [cancelSpeech, speak]);
   const updateSettings = useCallback((settings: Partial<SpeechPreferences>) => {
     if (!active.current) return;
-    const rebuildRules = settings.skipHeadings !== undefined || settings.skipUrls !== undefined || settings.skipCitations !== undefined || settings.skipConsecutiveDuplicates !== undefined || settings.skipLongNumbersAndCodes !== undefined;
+    const rebuildRules = settings.recommendedListening !== undefined || settings.modeId !== undefined || settings.skipHeadings !== undefined || settings.skipUrls !== undefined || settings.skipCitations !== undefined || settings.skipConsecutiveDuplicates !== undefined || settings.skipLongNumbersAndCodes !== undefined || settings.skipReferenceSection !== undefined || settings.skipSiteBoilerplate !== undefined || settings.sentencePauseMs !== undefined || settings.paragraphPauseMs !== undefined || settings.headingPauseMs !== undefined;
     const previousChunks = rebuildRules ? processSpeechText(active.current.speakableText ?? active.current.text, resolveSpeechPreferences(preferencesRef.current, active.current), active.current.language) : [];
     const anchor = previousChunks[chunkIndex.current]?.text.slice(0, 80).trim();
     preferencesRef.current = { ...preferencesRef.current, ...settings };
-    const next = { ...active.current, ...(settings.rate === undefined ? {} : { rate: settings.rate }), ...(settings.pitch === undefined ? {} : { pitch: settings.pitch }), ...(settings.modeId === undefined ? {} : { selectedModeId: settings.modeId }), ...(Object.prototype.hasOwnProperty.call(settings, 'voiceIdentifier') ? { selectedVoice: settings.voiceIdentifier } : {}), updatedAt: Date.now() };
+    const effective = resolveSpeechPreferences(preferencesRef.current, active.current);
+    const next = { ...active.current, rate: effective.rate, pitch: effective.pitch, ...(settings.modeId === undefined ? {} : { selectedModeId: settings.modeId }), ...(Object.prototype.hasOwnProperty.call(settings, 'voiceIdentifier') ? { selectedVoice: settings.voiceIdentifier } : {}), updatedAt: Date.now() };
     const wasPlaying = state === 'playing'; const session = cancelSpeech(); active.current = next;
-    if (rebuildRules && anchor) { const rebuilt = processSpeechText(next.speakableText ?? next.text, resolveSpeechPreferences(preferencesRef.current, next), next.language); const match = rebuilt.findIndex((chunk) => chunk.text.includes(anchor) || anchor.includes(chunk.text.slice(0, Math.min(80, chunk.text.length)))); if (match >= 0) chunkIndex.current = match; }
+    if (rebuildRules) {
+      const rebuilt = processSpeechText(next.speakableText ?? next.text, resolveSpeechPreferences(preferencesRef.current, next), next.language);
+      const match = anchor ? rebuilt.findIndex((chunk) => chunk.text.includes(anchor) || anchor.includes(chunk.text.slice(0, Math.min(80, chunk.text.length)))) : -1;
+      if (match >= 0) chunkIndex.current = match;
+      else {
+        const previousParagraph = previousChunks[chunkIndex.current]?.paragraphIndex ?? active.current.currentParagraphIndex ?? 0;
+        const nearest = rebuilt.findIndex((chunk) => chunk.paragraphIndex >= previousParagraph);
+        chunkIndex.current = nearest >= 0 ? nearest : Math.max(0, rebuilt.length - 1);
+      }
+    }
     setItem(next); onProgress(next);
     if (wasPlaying) timer.current = setTimeout(() => speak(chunkIndex.current, session), 50);
   }, [cancelSpeech, onProgress, speak, state]);

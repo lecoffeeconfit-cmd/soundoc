@@ -26,6 +26,10 @@ export const colors = {
   completedProgress: '#FF7138',
   remainingProgress: '#292F35',
   glassTint: '#1A1E22',
+  recommendedGold: '#D8B45A',
+  recommendedGoldBright: '#F4D77C',
+  recommendedGoldDark: '#8E6E25',
+  recommendedGoldGlow: 'rgba(216,180,90,0.22)',
 } as const;
 
 export const space = { xxs: 4, xs: 8, sm: 12, md: 16, lg: 20, xl: 24, xxl: 32, xxxl: 40 } as const;
