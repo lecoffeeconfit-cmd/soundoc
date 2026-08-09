@@ -137,6 +137,17 @@ export type SpeechPreferences = {
   skipReferenceSection?: boolean;
   /** Last manually configured values, preserved while a predefined mode is selected. */
   customProfile?: CustomListeningProfile;
+  /** Listening Studio is opt-in and intentionally defaults to false for existing installs. */
+  listeningStudioEnabled?: boolean;
+  /** Preserves the visual Studio preset selection alongside the canonical speech mode. */
+  listeningStudioPreset?: 'podcast' | 'study' | 'quick-preview' | 'deep-focus' | 'relaxed' | 'custom';
+  /** Reserved for a future ambience engine; no audio is loaded by the current app. */
+  ambienceType?: 'none' | 'rain' | 'cafe' | 'brown-noise' | 'white-noise' | 'fireplace' | 'nature';
+  ambienceVolume?: number;
+  /** Applies podcast-like pacing and section breathing room without changing the source text. */
+  podcastModeEnabled?: boolean;
+  /** Gates automatic clutter, page-number, citation, and structured-noise cleanup. */
+  smartFilteringEnabled?: boolean;
 };
 
 export type Playlist = { id: string; name: string; createdAt: number; updatedAt: number; itemIds: string[] };

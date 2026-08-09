@@ -41,7 +41,8 @@ export function initializeDatabase() {
     end_offset INTEGER NOT NULL, text TEXT NOT NULL, note TEXT, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL
   );
   CREATE INDEX IF NOT EXISTS highlights_item_idx ON highlights(library_item_id, start_offset);
-  CREATE TABLE IF NOT EXISTS folders (id TEXT PRIMARY KEY NOT NULL, name TEXT NOT NULL, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL);`);
+  CREATE TABLE IF NOT EXISTS folders (id TEXT PRIMARY KEY NOT NULL, name TEXT NOT NULL, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL);
+  `);
 }
 
 function toItem(row: Record<string, unknown>): LibraryItem {

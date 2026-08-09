@@ -7,7 +7,7 @@ const privacySections = [
   ['Our approach', 'Soundoc is designed to work without an account. Your library, queue, listening position, settings, and imported text are stored locally on your device.'],
   ['Content you import', 'Text, document contents, bookmarks, and notes are not sent to a Soundoc server. When you import a public article link, your device requests that page directly from the original website so it can prepare a readable listening copy.'],
   ['Speech and recognition', 'Soundoc uses voices available on your device. Photo and camera text recognition is processed on-device by the installed recognition component. Soundoc does not use your imported content to train advertising or voice models.'],
-  ['Information we do not collect', 'Soundoc does not require your name, email address, account, listening history, search terms, or the contents of your imported documents. It does not include behavioural advertising or third-party analytics.'],
+  ['Information we do not collect', 'Soundoc does not require your name, email address, or an account. When you send feedback, it includes the message and the optional technical details shown in the form, but never the contents of your imported documents. Soundoc does not include behavioural advertising or third-party analytics.'],
   ['Your choices', 'You can delete saved items and clear your queue in the app at any time. Removing Soundoc from your device removes its app-contained data, subject to your device backup settings.'],
   ['Changes and contact', 'If this policy changes materially, the updated version will be available here with a new effective date. For privacy questions, use the contact method in Soundoc’s App Store listing.'],
 ];

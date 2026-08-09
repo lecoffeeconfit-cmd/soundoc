@@ -1,34 +1,21 @@
 import * as Speech from 'expo-speech';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Platform } from 'react-native';
-import { processSpeechText, type SpeakableChunk } from '../lib/speechText';
+import { processSpeechText, remapSpeechChunkIndex, type SpeakableChunk } from '../lib/speechText';
 import { previewText } from '../lib/speechPreview';
 import { resolveSpeechPreferences } from '../lib/listeningModes';
 import { adaptiveChange } from '../lib/documentIntelligence';
 import { recordCompletedDocument, recordListening } from '../lib/analytics';
 import { removeArticleReferenceNoise } from '../lib/text';
+import { getBestGoldenVoice, GOLDEN_PRESET, rankAvailableVoices } from '../lib/goldenListening';
 import type { LibraryItem, PlayerState, SpeechPreferences, Voice } from '../types';
 
 const fallbackPreferences: SpeechPreferences = {
-  presetId: 'recommended', modeId: 'recommended', rate: 0.96, pitch: 1, volume: 1, sentencePauseMs: 260, paragraphPauseMs: 650, headingPauseMs: 850,
+  presetId: 'recommended', modeId: 'recommended', rate: GOLDEN_PRESET.rate, pitch: GOLDEN_PRESET.pitch, volume: GOLDEN_PRESET.volume, sentencePauseMs: GOLDEN_PRESET.sentencePauseMs, paragraphPauseMs: GOLDEN_PRESET.paragraphPauseMs, headingPauseMs: GOLDEN_PRESET.headingPauseMs,
   pronunciationRules: [], skipHeadings: false, skipUrls: true, skipCitations: true, skipSiteBoilerplate: true, skipNavigationAndAds: true,
   skipConsecutiveDuplicates: true, favoriteVoiceIds: [], recentVoiceIds: [], adaptiveListeningEnabled: false, skipLongNumbersAndCodes: true, skipReferenceSection: true, recommendedListening: true,
+  podcastModeEnabled: false, smartFilteringEnabled: true,
 };
-
-function recommendedVoiceFor(voices: Voice[], language: string, selectedIdentifier?: string) {
-  if (selectedIdentifier && voices.some((voice) => voice.identifier === selectedIdentifier)) return selectedIdentifier;
-  const baseLanguage = language.split('-')[0].toLowerCase();
-  const compatible = voices.filter((voice) => voice.language.toLowerCase() === language.toLowerCase() || voice.language.toLowerCase().startsWith(`${baseLanguage}-`));
-  const sorted = [...compatible].sort((a, b) => {
-    const exactA = a.language.toLowerCase() === language.toLowerCase() ? 0 : 1;
-    const exactB = b.language.toLowerCase() === language.toLowerCase() ? 0 : 1;
-    if (exactA !== exactB) return exactA - exactB;
-    const enhancedA = /enhanced|premium/i.test(a.quality ?? '') ? 0 : 1;
-    const enhancedB = /enhanced|premium/i.test(b.quality ?? '') ? 0 : 1;
-    return enhancedA - enhancedB || a.name.localeCompare(b.name);
-  });
-  return sorted[0]?.identifier;
-}
 
 export function useSpeechPlayer(onProgress: (item: LibraryItem) => void, preferences: SpeechPreferences = fallbackPreferences) {
   const [item, setItem] = useState<LibraryItem | null>(null);
@@ -41,6 +28,7 @@ export function useSpeechPlayer(onProgress: (item: LibraryItem) => void, prefere
   const speechSession = useRef(0);
   const nativePausedSession = useRef<number | null>(null);
   const speechActive = useRef(false);
+  const unavailableVoiceIds = useRef(new Set<string>());
   const preferencesRef = useRef(preferences);
   preferencesRef.current = preferences;
 
@@ -93,24 +81,39 @@ export function useSpeechPlayer(onProgress: (item: LibraryItem) => void, prefere
     }
     chunkIndex.current = Math.max(0, index);
     const position = positionForChunk(current, chunks[chunkIndex.current], chunks);
-    const next = { ...current, ...position, progress: chunks.length ? chunkIndex.current / chunks.length : 0, updatedAt: Date.now() };
+    const usableVoices = voices.filter((voice) => !unavailableVoiceIds.current.has(voice.identifier));
+    const selectedVoice = currentPreferences.recommendedListening ? getBestGoldenVoice(usableVoices, current.language, preferencesRef.current.voiceIdentifier ?? current.selectedVoice)?.identifier : (current.selectedVoice && usableVoices.some((voice) => voice.identifier === current.selectedVoice) ? current.selectedVoice : undefined);
+    const next = { ...current, ...position, selectedVoice, progress: chunks.length ? chunkIndex.current / chunks.length : 0, updatedAt: Date.now() };
     commit(next, 'playing');
     void recordListening(chunks[chunkIndex.current].text.trim().split(/\s+/).filter(Boolean).length, chunks[chunkIndex.current].text.trim().split(/\s+/).filter(Boolean).length * 0.42 / Math.max(0.1, currentPreferences.rate), currentPreferences.rate);
-    const selectedVoice = currentPreferences.recommendedListening ? recommendedVoiceFor(voices, next.language, preferencesRef.current.voiceIdentifier ?? next.selectedVoice) : (next.selectedVoice && voices.some((voice) => voice.identifier === next.selectedVoice) ? next.selectedVoice : undefined);
-    speechActive.current = true;
-    Speech.speak(chunks[chunkIndex.current].text, {
-      language: next.language, voice: selectedVoice, rate: Math.min(2, Math.max(0.1, currentPreferences.rate)),
-      pitch: Math.min(2, Math.max(0.5, currentPreferences.pitch)), volume: Math.min(1, Math.max(0, currentPreferences.volume)),
-      onDone: () => {
+    const onDone = () => {
         speechActive.current = false;
         if (session !== speechSession.current || nativePausedSession.current === session) return;
         const pause = chunks[chunkIndex.current]?.pauseAfterMs ?? 0;
         if (pause > 0) timer.current = setTimeout(() => speak(chunkIndex.current + 1, session), pause);
         else speak(chunkIndex.current + 1, session);
-      },
-      onStopped: () => { if (session === speechSession.current) speechActive.current = false; },
-      onError: () => { if (session === speechSession.current) { speechActive.current = false; setState('error'); } },
-    });
+    };
+    const speakChunk = (voice: string | undefined, mayRetryWithoutVoice: boolean) => {
+      speechActive.current = true;
+      Speech.speak(chunks[chunkIndex.current].text, {
+        language: next.language, voice, rate: Math.min(2, Math.max(0.1, currentPreferences.rate)),
+        pitch: Math.min(2, Math.max(0.5, currentPreferences.pitch)), volume: Math.min(1, Math.max(0, currentPreferences.volume)),
+        onDone,
+        onStopped: () => { if (session === speechSession.current) speechActive.current = false; },
+        onError: () => {
+          if (session !== speechSession.current) return;
+          speechActive.current = false;
+          if (voice && mayRetryWithoutVoice) {
+            unavailableVoiceIds.current.add(voice);
+            setVoices((available) => available.filter((candidate) => candidate.identifier !== voice));
+            speakChunk(undefined, false);
+            return;
+          }
+          setState('error');
+        },
+      });
+    };
+    speakChunk(selectedVoice, true);
   }, [clearTimer, commit, voices]);
 
   const load = useCallback((next: LibraryItem, autoplay = false) => {
@@ -118,10 +121,12 @@ export function useSpeechPlayer(onProgress: (item: LibraryItem) => void, prefere
     const currentPreferences = preferencesRef.current;
     const effective = resolveSpeechPreferences({ ...currentPreferences, modeId: next.selectedModeId ?? currentPreferences.modeId }, next);
     const playableText = next.type === 'article' || next.sourceType === 'url' ? removeArticleReferenceNoise(next.text) : next.text;
-    const resolved = { ...next, speakableText: playableText, rate: effective.rate, pitch: effective.pitch, selectedVoice: currentPreferences.voiceIdentifier, completed: false };
+    const usableVoices = voices.filter((voice) => !unavailableVoiceIds.current.has(voice.identifier));
+    const selectedVoice = effective.recommendedListening ? getBestGoldenVoice(usableVoices, next.language, currentPreferences.voiceIdentifier)?.identifier : currentPreferences.voiceIdentifier;
+    const resolved = { ...next, speakableText: playableText, rate: effective.rate, pitch: effective.pitch, selectedVoice, completed: false };
     active.current = resolved; chunkIndex.current = Math.max(0, next.currentCharacterOffset === undefined ? next.sentenceIndex : next.sentenceIndex); setItem(resolved); setState('ready');
     if (autoplay) timer.current = setTimeout(() => speak(chunkIndex.current, session), 60);
-  }, [cancelSpeech, onProgress, speak]);
+  }, [cancelSpeech, speak, voices]);
 
   const play = useCallback(() => {
     if (!active.current) return;
@@ -158,22 +163,18 @@ export function useSpeechPlayer(onProgress: (item: LibraryItem) => void, prefere
   const jump = useCallback((delta: number) => { const session = cancelSpeech(); speak(Math.max(0, chunkIndex.current + delta), session); }, [cancelSpeech, speak]);
   const updateSettings = useCallback((settings: Partial<SpeechPreferences>) => {
     if (!active.current) return;
-    const rebuildRules = settings.recommendedListening !== undefined || settings.modeId !== undefined || settings.skipHeadings !== undefined || settings.skipUrls !== undefined || settings.skipCitations !== undefined || settings.skipConsecutiveDuplicates !== undefined || settings.skipLongNumbersAndCodes !== undefined || settings.skipReferenceSection !== undefined || settings.skipSiteBoilerplate !== undefined || settings.sentencePauseMs !== undefined || settings.paragraphPauseMs !== undefined || settings.headingPauseMs !== undefined;
+    if (settings.voiceIdentifier) unavailableVoiceIds.current.delete(settings.voiceIdentifier);
+    const rebuildRules = settings.recommendedListening !== undefined || settings.modeId !== undefined || settings.podcastModeEnabled !== undefined || settings.smartFilteringEnabled !== undefined || settings.skipHeadings !== undefined || settings.skipUrls !== undefined || settings.skipCitations !== undefined || settings.skipConsecutiveDuplicates !== undefined || settings.skipLongNumbersAndCodes !== undefined || settings.skipReferenceSection !== undefined || settings.skipSiteBoilerplate !== undefined || settings.sentencePauseMs !== undefined || settings.paragraphPauseMs !== undefined || settings.headingPauseMs !== undefined;
     const previousChunks = rebuildRules ? processSpeechText(active.current.speakableText ?? active.current.text, resolveSpeechPreferences(preferencesRef.current, active.current), active.current.language) : [];
-    const anchor = previousChunks[chunkIndex.current]?.text.slice(0, 80).trim();
     preferencesRef.current = { ...preferencesRef.current, ...settings };
     const effective = resolveSpeechPreferences(preferencesRef.current, active.current);
-    const next = { ...active.current, rate: effective.rate, pitch: effective.pitch, ...(settings.modeId === undefined ? {} : { selectedModeId: settings.modeId }), ...(Object.prototype.hasOwnProperty.call(settings, 'voiceIdentifier') ? { selectedVoice: settings.voiceIdentifier } : {}), updatedAt: Date.now() };
+    const usableVoices = voices.filter((voice) => !unavailableVoiceIds.current.has(voice.identifier));
+    const effectiveVoice = effective.recommendedListening ? getBestGoldenVoice(usableVoices, active.current.language, preferencesRef.current.voiceIdentifier)?.identifier : preferencesRef.current.voiceIdentifier;
+    const next = { ...active.current, rate: effective.rate, pitch: effective.pitch, selectedVoice: effectiveVoice, ...(settings.modeId === undefined ? {} : { selectedModeId: settings.modeId }), updatedAt: Date.now() };
     const wasPlaying = state === 'playing'; const session = cancelSpeech(); active.current = next;
     if (rebuildRules) {
       const rebuilt = processSpeechText(next.speakableText ?? next.text, resolveSpeechPreferences(preferencesRef.current, next), next.language);
-      const match = anchor ? rebuilt.findIndex((chunk) => chunk.text.includes(anchor) || anchor.includes(chunk.text.slice(0, Math.min(80, chunk.text.length)))) : -1;
-      if (match >= 0) chunkIndex.current = match;
-      else {
-        const previousParagraph = previousChunks[chunkIndex.current]?.paragraphIndex ?? active.current.currentParagraphIndex ?? 0;
-        const nearest = rebuilt.findIndex((chunk) => chunk.paragraphIndex >= previousParagraph);
-        chunkIndex.current = nearest >= 0 ? nearest : Math.max(0, rebuilt.length - 1);
-      }
+      chunkIndex.current = remapSpeechChunkIndex(previousChunks, rebuilt, chunkIndex.current);
     }
     setItem(next); onProgress(next);
     if (wasPlaying) timer.current = setTimeout(() => speak(chunkIndex.current, session), 50);
@@ -191,13 +192,15 @@ export function useSpeechPlayer(onProgress: (item: LibraryItem) => void, prefere
 
   const playText = useCallback((text: string, language = active.current?.language ?? 'en-US') => {
     const wasPlaying = state === 'playing'; const resumeIndex = chunkIndex.current; const current = active.current; const effective = resolveSpeechPreferences(preferencesRef.current, current); const chunks = processSpeechText(text, effective, language); let index = 0; const session = cancelSpeech();
-    const speakTemporaryChunk = () => { if (session !== speechSession.current) return; const chunk = chunks[index]; if (!chunk) { if (wasPlaying) timer.current = setTimeout(() => speak(resumeIndex, session), 50); return; } speechActive.current = true; Speech.speak(chunk.text, { language, voice: effective.voiceIdentifier, rate: effective.rate, pitch: effective.pitch, volume: effective.volume, onDone: () => { speechActive.current = false; if (session !== speechSession.current) return; index += 1; if (chunks[index - 1]?.pauseAfterMs) timer.current = setTimeout(speakTemporaryChunk, chunks[index - 1].pauseAfterMs); else speakTemporaryChunk(); }, onError: () => { speechActive.current = false; if (session === speechSession.current && wasPlaying) speak(resumeIndex, session); } }); };
+    const usableVoices = voices.filter((voice) => !unavailableVoiceIds.current.has(voice.identifier));
+    const selectedVoice = effective.recommendedListening ? getBestGoldenVoice(usableVoices, language, effective.voiceIdentifier)?.identifier : effective.voiceIdentifier;
+    const speakTemporaryChunk = () => { if (session !== speechSession.current) return; const chunk = chunks[index]; if (!chunk) { if (wasPlaying) timer.current = setTimeout(() => speak(resumeIndex, session), 50); return; } speechActive.current = true; Speech.speak(chunk.text, { language, voice: selectedVoice, rate: effective.rate, pitch: effective.pitch, volume: effective.volume, onDone: () => { speechActive.current = false; if (session !== speechSession.current) return; index += 1; if (chunks[index - 1]?.pauseAfterMs) timer.current = setTimeout(speakTemporaryChunk, chunks[index - 1].pauseAfterMs); else speakTemporaryChunk(); }, onError: () => { speechActive.current = false; if (session === speechSession.current && wasPlaying) speak(resumeIndex, session); } }); };
     if (chunks.length) speakTemporaryChunk();
-  }, [cancelSpeech, speak, state]);
+  }, [cancelSpeech, speak, state, voices]);
 
   const playConversation = useCallback((turns: Array<{ speaker: string; text: string }>, language = active.current?.language ?? 'en-US') => {
-    const wasPlaying = state === 'playing'; const resumeIndex = chunkIndex.current; let index = 0; const session = cancelSpeech();
-    const speakTurn = () => { if (session !== speechSession.current) return; const turn = turns[index]; if (!turn) { if (wasPlaying) timer.current = setTimeout(() => speak(resumeIndex, session), 50); return; } const voice = voices[index % Math.max(1, voices.length)]?.identifier; Speech.speak(turn.text, { language, voice, rate: preferencesRef.current.rate, pitch: preferencesRef.current.pitch, volume: preferencesRef.current.volume, onDone: () => { index += 1; speakTurn(); }, onError: () => { if (wasPlaying) speak(resumeIndex, session); } }); };
+    const wasPlaying = state === 'playing'; const resumeIndex = chunkIndex.current; let index = 0; const session = cancelSpeech(); const effective = resolveSpeechPreferences(preferencesRef.current, active.current); const compatibleVoices = rankAvailableVoices(voices.filter((voice) => !unavailableVoiceIds.current.has(voice.identifier)), language, effective.voiceIdentifier);
+    const speakTurn = () => { if (session !== speechSession.current) return; const turn = turns[index]; if (!turn) { if (wasPlaying) timer.current = setTimeout(() => speak(resumeIndex, session), 50); return; } const voice = compatibleVoices[index % Math.max(1, compatibleVoices.length)]?.identifier; Speech.speak(turn.text, { language, voice, rate: effective.rate, pitch: effective.pitch, volume: effective.volume, onDone: () => { index += 1; speakTurn(); }, onError: () => { if (wasPlaying) speak(resumeIndex, session); } }); };
     if (turns.length) speakTurn();
   }, [cancelSpeech, speak, state, voices]);
 

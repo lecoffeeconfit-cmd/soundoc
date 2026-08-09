@@ -3,14 +3,15 @@ import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-nati
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors, radius, space, type } from '../lib/theme';
 import { getListeningModeProfile, normalizeListeningModeId, recommendedProfileFor } from '../lib/listeningModes';
-import type { LibraryItem, ListeningModeId, SpeechPreferences } from '../types';
+import { applyGoldenPreset, getBestGoldenVoice } from '../lib/goldenListening';
+import type { LibraryItem, ListeningModeId, SpeechPreferences, Voice } from '../types';
 
 const featured: ListeningModeId[] = ['recommended', 'study', 'quickPreview'];
 const more: ListeningModeId[] = ['natural', 'deepFocus', 'news', 'storytelling', 'slowClear', 'relaxed', 'sleep', 'custom'];
 
-type Props = { visible: boolean; preferences: SpeechPreferences; activeItem?: LibraryItem | null; onClose: () => void; onApply: (settings: Partial<SpeechPreferences>) => void; onPreview: (settings: Pick<SpeechPreferences, 'voiceIdentifier' | 'rate' | 'pitch' | 'volume'>) => void; onStopPreview: () => void };
+type Props = { visible: boolean; preferences: SpeechPreferences; voices: Voice[]; activeItem?: LibraryItem | null; onClose: () => void; onApply: (settings: Partial<SpeechPreferences>) => void; onPreview: (settings: Pick<SpeechPreferences, 'voiceIdentifier' | 'rate' | 'pitch' | 'volume'>) => void; onStopPreview: () => void };
 
-export function ListeningModeSheet({ visible, preferences, activeItem, onClose, onApply, onPreview, onStopPreview }: Props) {
+export function ListeningModeSheet({ visible, preferences, voices, activeItem, onClose, onApply, onPreview, onStopPreview }: Props) {
   const [previewing, setPreviewing] = useState<ListeningModeId | null>(null);
   const wasVisible = useRef(false);
   const selected = preferences.recommendedListening ? 'recommended' : normalizeListeningModeId(preferences.modeId);
@@ -21,13 +22,14 @@ export function ListeningModeSheet({ visible, preferences, activeItem, onClose, 
   const choose = (id: ListeningModeId) => {
     const selectedProfile = profileFor(id);
     if (previewing) onStopPreview();
-    onApply({ modeId: id, presetId: id, recommendedListening: id === 'recommended', smartClassification: id === 'recommended' ? recommended.classification : undefined, rate: selectedProfile.rate, pitch: selectedProfile.pitch, volume: selectedProfile.volume, sentencePauseMs: selectedProfile.sentencePauseMs, paragraphPauseMs: selectedProfile.paragraphPauseMs, headingPauseMs: selectedProfile.headingPauseMs, ...selectedProfile.readingRules });
+    onApply(id === 'recommended' ? { ...applyGoldenPreset(), smartClassification: recommended.classification } : { modeId: id, presetId: id, recommendedListening: false, smartClassification: undefined, rate: selectedProfile.rate, pitch: selectedProfile.pitch, volume: selectedProfile.volume, sentencePauseMs: selectedProfile.sentencePauseMs, paragraphPauseMs: selectedProfile.paragraphPauseMs, headingPauseMs: selectedProfile.headingPauseMs, ...selectedProfile.readingRules });
     setPreviewing(null);
   };
   const preview = (id: ListeningModeId) => {
     const selectedProfile = profileFor(id);
     setPreviewing(id);
-    onPreview({ voiceIdentifier: preferences.voiceIdentifier, rate: selectedProfile.rate, pitch: selectedProfile.pitch, volume: selectedProfile.volume });
+    const previewVoice = id === 'recommended' ? getBestGoldenVoice(voices, activeItem?.language ?? preferences.voiceLocale ?? 'en-US', preferences.voiceIdentifier)?.identifier : preferences.voiceIdentifier;
+    onPreview({ voiceIdentifier: previewVoice, rate: selectedProfile.rate, pitch: selectedProfile.pitch, volume: selectedProfile.volume });
   };
   const renderMode = (id: ListeningModeId) => {
     const mode = profileFor(id);
@@ -37,7 +39,7 @@ export function ListeningModeSheet({ visible, preferences, activeItem, onClose, 
     return <Pressable key={id} onPress={() => choose(id)} style={({ pressed }) => [styles.modeCard, isRecommended && styles.modeCardRecommended, isSelected && (isRecommended ? styles.modeCardRecommendedSelected : styles.modeCardSelected), pressed && styles.pressed]} accessibilityRole="radio" accessibilityState={{ selected: isSelected }} accessibilityLabel={`${mode.name}. ${mode.description}. ${mode.useLabel}.${isSelected ? ' Selected.' : ''}`}><View style={[styles.modeIcon, isRecommended && styles.modeIconRecommended, isSelected && (isRecommended ? styles.modeIconRecommendedSelected : styles.modeIconSelected)]}><Text style={[styles.modeIconText, isRecommended && styles.modeIconTextRecommended, isSelected && styles.modeIconTextSelected]}>{mode.icon}</Text></View><View style={styles.modeCopy}><View style={styles.modeTitleRow}><Text style={[styles.modeName, isRecommended && styles.modeNameRecommended, isSelected && styles.modeNameSelected]}>{mode.name}</Text>{isSelected && <Text style={[styles.selectedLabel, isRecommended && styles.selectedLabelRecommended]}>SELECTED</Text>}</View><Text style={styles.modeDescription}>{mode.description}</Text><Text style={[styles.modeValues, isRecommended && styles.modeValuesRecommended]}>{values}</Text></View><Pressable onPress={() => preview(id)} style={({ pressed }) => [styles.previewButton, isRecommended && styles.previewButtonRecommended, previewing === id && styles.previewButtonActive, pressed && styles.pressed]} accessibilityRole="button" accessibilityLabel={`Preview ${mode.name}`} accessibilityState={{ busy: previewing === id }}><Text style={[styles.previewGlyph, isRecommended && styles.previewGlyphRecommended]}>{previewing === id ? 'Ⅱ' : '▶'}</Text></Pressable></Pressable>;
   };
 
-  return <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}><SafeAreaView style={styles.screen}><View style={styles.header}><View style={styles.headerCopy}><Text style={styles.kicker}>LISTENING MODES</Text><Text style={styles.title}>Choose your sound</Text><Text style={styles.subtitle}>Keep your selected iPhone voice. Modes tune speed, pitch, pauses, and cleanup.</Text></View><Pressable onPress={onClose} accessibilityRole="button" accessibilityLabel="Close listening modes"><Text style={styles.done}>Done</Text></Pressable></View><ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}><Text style={styles.groupTitle}>START HERE</Text><View style={styles.group}>{featured.map(renderMode)}</View><Text style={styles.groupTitle}>MORE MODES</Text><View style={styles.group}>{more.map(renderMode)}</View><View style={styles.smartNote}><Text style={styles.smartNoteIcon}>✦</Text><Text style={styles.smartNoteText}>Preview uses your selected iPhone voice. Choosing a mode keeps your voice, language, queue, and saved document unchanged.</Text></View></ScrollView></SafeAreaView></Modal>;
+  return <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}><SafeAreaView style={styles.screen}><View style={styles.header}><View style={styles.headerCopy}><Text style={styles.kicker}>LISTENING MODES</Text><Text style={styles.title}>Choose your sound</Text><Text style={styles.subtitle}>Modes tune real system-voice controls and Soundoc's narration pacing.</Text></View><Pressable onPress={onClose} accessibilityRole="button" accessibilityLabel="Close listening modes"><Text style={styles.done}>Done</Text></Pressable></View><ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}><Text style={styles.groupTitle}>START HERE</Text><View style={styles.group}>{featured.map(renderMode)}</View><Text style={styles.groupTitle}>MORE MODES</Text><View style={styles.group}>{more.map(renderMode)}</View><View style={styles.smartNote}><Text style={styles.smartNoteIcon}>✦</Text><Text style={styles.smartNoteText}>Golden chooses the best compatible Enhanced voice when available. Other modes keep your selected voice. Language, queue, and saved documents stay unchanged.</Text></View></ScrollView></SafeAreaView></Modal>;
 }
 
 const styles = StyleSheet.create({

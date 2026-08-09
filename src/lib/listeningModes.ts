@@ -1,4 +1,5 @@
 import type { LibraryItem, ListeningModeId, SmartClassification, SpeechPreferences } from '../types';
+import { GOLDEN_PRESET } from './goldenListening';
 
 /** The mode catalog is the single source of truth for values shown in Settings and used by speech. */
 export type ListeningModeProfile = {
@@ -20,7 +21,7 @@ const defaultModeRules: ListeningModeProfile['readingRules'] = { skipSiteBoilerp
 const profile = (value: Omit<ListeningModeProfile, 'icon'> & { icon?: string }): ListeningModeProfile => ({ icon: '◌', ...value, readingRules: value.id === 'custom' ? (value.readingRules ?? {}) : { ...defaultModeRules, ...value.readingRules } });
 
 export const LISTENING_MODE_PROFILES: readonly ListeningModeProfile[] = [
-  profile({ id: 'recommended', name: 'Soundoc Recommended', description: 'Best overall settings for clear, podcast-like listening.', useLabel: 'Best overall', icon: '✦', rate: 0.96, pitch: 1, volume: 1, sentencePauseMs: 260, paragraphPauseMs: 650, headingPauseMs: 850, readingRules: { skipSiteBoilerplate: true, skipNavigationAndAds: true, skipCitations: true, skipLongNumbersAndCodes: true, skipDatabaseIdentifiers: true, skipUrls: true, skipConsecutiveDuplicates: true, skipReferenceSection: true, preserveHeadings: true, preserveMeaningfulNumbers: true, preserveStatistics: true, preserveMeasurements: true } }),
+  profile({ id: 'recommended', name: GOLDEN_PRESET.name, description: GOLDEN_PRESET.description, useLabel: 'Best overall', icon: '✦', rate: GOLDEN_PRESET.rate, pitch: GOLDEN_PRESET.pitch, volume: GOLDEN_PRESET.volume, sentencePauseMs: GOLDEN_PRESET.sentencePauseMs, paragraphPauseMs: GOLDEN_PRESET.paragraphPauseMs, headingPauseMs: GOLDEN_PRESET.headingPauseMs, readingRules: { ...GOLDEN_PRESET.readingRules } }),
   profile({ id: 'natural', name: 'Natural', description: 'Balanced everyday listening with minimal processing.', useLabel: 'Everyday', icon: '◉', rate: 1, pitch: 1, volume: 1, sentencePauseMs: 220, paragraphPauseMs: 550, headingPauseMs: 750, readingRules: { skipSiteBoilerplate: true, skipNavigationAndAds: true, skipUrls: true, skipConsecutiveDuplicates: true, preserveHeadings: true } }),
   profile({ id: 'study', name: 'Study & Learn', description: 'Deliberate pacing for textbooks, research, and material you want to remember.', useLabel: 'Learning', icon: '▤', rate: 0.88, pitch: 1, volume: 1, sentencePauseMs: 380, paragraphPauseMs: 850, headingPauseMs: 1050, readingRules: { skipSiteBoilerplate: true, skipNavigationAndAds: true, skipCitations: true, skipLongNumbersAndCodes: true, skipDatabaseIdentifiers: true, skipUrls: true, skipConsecutiveDuplicates: true, skipReferenceSection: true, preserveHeadings: true, preserveDefinitions: true, preserveStatistics: true, preserveMeasurements: true, preserveMeaningfulNumbers: true } }),
   profile({ id: 'quickPreview', name: 'Quick Preview', description: 'Rapidly scan an article or document before deciding whether to read it fully.', useLabel: 'Previewing', icon: '»', rate: 1.55, pitch: 1, volume: 1, sentencePauseMs: 80, paragraphPauseMs: 220, headingPauseMs: 400, readingRules: { skipSiteBoilerplate: true, skipNavigationAndAds: true, skipCitations: true, skipLongNumbersAndCodes: true, skipDatabaseIdentifiers: true, skipUrls: true, skipConsecutiveDuplicates: true, skipReferenceSection: true, preserveHeadings: true } }),
@@ -91,10 +92,16 @@ export function smartProfileFor(item?: Pick<LibraryItem, 'type' | 'title' | 'tex
 export function resolveSpeechPreferences(preferences: SpeechPreferences, item?: LibraryItem | null): SpeechPreferences {
   const id = preferences.recommendedListening ? 'recommended' : normalizeListeningModeId(preferences.modeId);
   const resolved = modeProfileFor(id, preferences);
-  return { ...preferences, modeId: id, smartClassification: id === 'recommended' ? classifyDocument(item) : preferences.smartClassification, rate: resolved.rate, pitch: resolved.pitch, volume: resolved.volume, sentencePauseMs: resolved.sentencePauseMs, paragraphPauseMs: resolved.paragraphPauseMs, headingPauseMs: resolved.headingPauseMs, ...resolved.readingRules, recommendedListening: id === 'recommended' };
+  const golden = id === 'recommended';
+  const podcastPacing = !golden && preferences.podcastModeEnabled ? { sentencePauseMs: Math.max(resolved.sentencePauseMs, 280), paragraphPauseMs: Math.max(resolved.paragraphPauseMs, 700), headingPauseMs: Math.max(resolved.headingPauseMs, 900) } : {};
+  const filtering = preferences.smartFilteringEnabled === false
+    ? { skipSiteBoilerplate: false, skipNavigationAndAds: false, skipSharingControls: false, skipRelatedStories: false, skipDatabaseIdentifiers: false, skipUrls: false, skipCitations: false, skipHeadings: false, skipConsecutiveDuplicates: false, skipLongNumbersAndCodes: false, skipReferenceSection: false }
+    : { ...resolved.readingRules, skipSiteBoilerplate: true, skipUrls: true, skipCitations: true, skipLongNumbersAndCodes: true, skipReferenceSection: true };
+  return { ...preferences, modeId: id, smartClassification: golden ? classifyDocument(item) : preferences.smartClassification, rate: resolved.rate, pitch: resolved.pitch, volume: resolved.volume, sentencePauseMs: podcastPacing.sentencePauseMs ?? resolved.sentencePauseMs, paragraphPauseMs: podcastPacing.paragraphPauseMs ?? resolved.paragraphPauseMs, headingPauseMs: podcastPacing.headingPauseMs ?? resolved.headingPauseMs, ...filtering, recommendedListening: golden, podcastModeEnabled: golden ? false : preferences.podcastModeEnabled, adaptiveListeningEnabled: golden ? false : preferences.adaptiveListeningEnabled };
 }
 
 export function modeSummary(preferences: SpeechPreferences, item?: LibraryItem | null) {
+  if (preferences.podcastModeEnabled) return 'Podcast';
   const id = preferences.recommendedListening ? 'recommended' : normalizeListeningModeId(preferences.modeId);
   return modeProfileFor(id, preferences).name;
 }

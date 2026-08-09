@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { Animated, Easing, StyleSheet, Text, View } from 'react-native';
+import { Animated, Easing, Image, StyleSheet, Text, View } from 'react-native';
 import { colors, radius, shadows, space, type } from '../lib/theme';
 
 type Props = { label?: string; detail?: string; overlay?: boolean };
@@ -28,6 +28,12 @@ export function LoadingScreen({ label = 'Getting your listening room ready', det
   return <View style={[styles.screen, overlay && styles.overlay]} accessibilityRole="progressbar" accessibilityLabel={label} accessibilityValue={{ now: 50, min: 0, max: 100 }}>
     <View style={styles.ambientGlow} />
     <View style={styles.content}>
+      <Image
+        source={require('../../assets/icon.png')}
+        style={styles.logo}
+        resizeMode="contain"
+        accessibilityLabel="Soundoc logo"
+      />
       <Text style={styles.brand}>Soundoc</Text>
       <Text style={styles.kicker}>PRIVATE LISTENING</Text>
       <View style={styles.machine}>
@@ -48,6 +54,7 @@ const styles = StyleSheet.create({
   overlay: { ...StyleSheet.absoluteFill, zIndex: 30, backgroundColor: 'rgba(12,15,18,0.97)' },
   ambientGlow: { position: 'absolute', width: 320, height: 320, borderRadius: radius.pill, backgroundColor: colors.accentPrimary, opacity: 0.07, transform: [{ scaleX: 1.35 }, { scaleY: 0.72 }], top: '23%' },
   content: { width: '100%', maxWidth: 360, alignItems: 'center', paddingHorizontal: space.xl },
+  logo: { width: 84, height: 84, marginBottom: space.sm, borderRadius: radius.large },
   brand: { ...type.title, color: colors.textPrimary, letterSpacing: -0.7 },
   kicker: { ...type.caption, color: colors.textTertiary, letterSpacing: 1.35, marginTop: 3 },
   machine: { width: 172, height: 172, alignItems: 'center', justifyContent: 'center', marginTop: space.xxxl, marginBottom: space.xxl },

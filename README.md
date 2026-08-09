@@ -11,6 +11,10 @@ npm run ios
 
 The primary path is deliberately short: **Paste Text**, **Paste Link**, or **Upload Document**, then tap **Play**. No account, voice selection, speed choice, or purchase is required before the first listen.
 
+## Feedback
+
+Feedback is optional and account-free. From Settings, users can open their native email app with an editable Soundoc feedback draft addressed to `coldsteelhowie@gmail.com`. The feedback form includes only the message and, when enabled, basic app/device diagnostics; it never includes document contents or imported files.
+
 ## Included
 
 - On-device system speech with sentence-level progress and resume position

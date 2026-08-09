@@ -23,6 +23,8 @@ export function removeArticleReferenceNoise(input: string): string {
 export type RemovedSegment = { text: string; reason: 'DOI' | 'Database identifier' | 'Bibliographic metadata' | 'Long code sequence' | 'Reference-only number line' };
 
 const identifierToken = /\b(?:doi\s*:\s*)?(?:10\.\d{4,9}\/[-._;()/:A-Z0-9]+|PMID\s*:?\s*\d{6,}|PMCID\s*:?\s*PMC\d{6,}|ISSN\s*:?\s*\d{4}[-–]\d{3}[\dX]|ISBN(?:-\d)?\s*:?\s*(?:97[89][\d-]{10,}|\d[\d-]{9,})|ORCID\s*:?\s*\d{4}-\d{4}-\d{4}-\d{4}|arXiv\s*:?\s*\d{4}\.\d{4,5}(?:v\d+)?|NCT\d{8}|[0-9a-f]{8}-[0-9a-f-]{27,}|[A-Z0-9]{2,}[/-][A-Z0-9()/-]{7,})\b/gi;
+const unformattedLongNumber = /\b\d{9,}\b/g;
+const mixedLongCode = /\b[A-Z0-9][A-Z0-9._-]{9,}\b/gi;
 
 function likelyBibliographicLine(line: string) {
   return /^(?:\d{4};\d{1,4}:\d{1,5}[-–]\d{1,5}|\d{4};\d{1,4}\s*:\s*\d{1,5}[-–]\d{1,5})\.?$/.test(line.trim()) || /^(?:\[?\s*(?:doi|pmid|pmcid|isbn|issn|orcid|arxiv|pubmed|google scholar|crossref|citation|volume|issue|pages?)\s*\]?\s*)+$/i.test(line.trim());
@@ -30,7 +32,7 @@ function likelyBibliographicLine(line: string) {
 
 function likelyCodeLine(line: string) {
   const value = line.trim(); const digitCount = (value.match(/\d/g) ?? []).length; const letters = (value.match(/[A-Za-z]/g) ?? []).length; const separators = (value.match(/[\/:;()._-]/g) ?? []).length; const ordinaryWords = value.split(/\s+/).filter((word) => /[A-Za-z]{3,}/.test(word)).length;
-  if (value.length < 9 || ordinaryWords > 5 || digitCount < 4) return false;
+  if (value.length < 9 || ordinaryWords > 1 || digitCount < 4) return false;
   return separators >= 1 && (digitCount + separators >= 7 || digitCount / Math.max(1, letters) > 0.75);
 }
 
@@ -43,9 +45,21 @@ export function filterLongNumbersAndCodes(text: string, options: { enabled: bool
     if (/^\d{3,}[.)]?$/.test(line)) { removedSegments.push({ text: line, reason: 'Reference-only number line' }); return ''; }
     if (likelyBibliographicLine(line)) { removedSegments.push({ text: line, reason: 'Bibliographic metadata' }); return ''; }
     if (likelyCodeLine(line)) { removedSegments.push({ text: line, reason: identifierToken.test(line) && /doi|pmid|pmcid|issn|isbn|orcid|arxiv|nct/i.test(line) ? 'Database identifier' : 'Long code sequence' }); identifierToken.lastIndex = 0; return ''; }
-    const replaced = line.replace(identifierToken, (match) => { const reason: RemovedSegment['reason'] = /^\s*10\./i.test(match) || /doi/i.test(match) ? 'DOI' : /^(?:\s*(?:19|20)\d{2};|\s*\d{4};)/.test(match) ? 'Bibliographic metadata' : 'Database identifier'; removedSegments.push({ text: match, reason }); return ''; });
+    const withoutIdentifiers = line.replace(identifierToken, (match) => { const reason: RemovedSegment['reason'] = /^\s*10\./i.test(match) || /doi/i.test(match) ? 'DOI' : /^(?:\s*(?:19|20)\d{2};|\s*\d{4};)/.test(match) ? 'Bibliographic metadata' : 'Database identifier'; removedSegments.push({ text: match, reason }); return ''; });
     identifierToken.lastIndex = 0;
-    return replaced.replace(/\s{2,}/g, ' ').replace(/\s+([,.;])/g, '$1').trim();
+    const withoutMixedCodes = withoutIdentifiers.replace(mixedLongCode, (match) => {
+      const digitCount = (match.match(/\d/g) ?? []).length;
+      const letterCount = (match.match(/[A-Za-z]/g) ?? []).length;
+      if (digitCount < 6 || letterCount === 0) return match;
+      removedSegments.push({ text: match, reason: 'Long code sequence' });
+      return '';
+    });
+    mixedLongCode.lastIndex = 0;
+    const replaced = withoutMixedCodes.replace(unformattedLongNumber, (match) => { removedSegments.push({ text: match, reason: 'Long code sequence' }); return ''; });
+    unformattedLongNumber.lastIndex = 0;
+    const cleanedLine = replaced.replace(/\s{2,}/g, ' ').replace(/\s+([,.;])/g, '$1').trim();
+    if (/^(?:tracking|reference|confirmation|transaction|account|record|document|invoice|serial)?\s*(?:number|no\.?|id|code)\s*:?[.,;]?$/i.test(cleanedLine)) return '';
+    return cleanedLine;
   }).filter(Boolean);
   return { spokenText: cleanText(spokenLines.join('\n\n')), removedSegments };
 }
