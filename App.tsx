@@ -20,13 +20,13 @@ import { readAnalytics } from './src/lib/analytics';
 import type { ArticleExtraction } from './src/lib/importers';
 import { recognizeImageText } from './src/lib/ocr';
 import { cleanText, countWords, detectLanguage, estimateSeconds, formatDuration, safePublicUrl, segmentSentences, suggestedTitle } from './src/lib/text';
+import { getLegalUrl } from './src/lib/legal';
 import { colors, radius, space, type } from './src/lib/theme';
 import { copy } from './src/lib/strings';
 import { useSpeechPlayer } from './src/hooks/useSpeechPlayer';
 import { processSpeechText } from './src/lib/speechText';
 import type { Bookmark, Flashcard, GroundedAnswer, ItemType, LibraryItem, ListeningAnalytics, PassageExplanation, Playlist, PodcastScript, ReviewQuestion, SoundocSection, SpeechPreferences, SourcePassage, SummaryFormat, SummaryLength, SummaryResult, Voice } from './src/types';
 import type { LegalDocument } from './src/types/legal';
-import { LegalModal } from './src/components/LegalModal';
 import { OnboardingModal } from './src/components/OnboardingModal';
 import { SettingsScreen } from './src/screens/SettingsScreen';
 import { AudioWaveform } from './src/components/AudioWaveform';
@@ -68,7 +68,6 @@ function SoundocApp() {
   const [playlists, setPlaylists] = useState<Playlist[]>([]);
   const [showPlaylists, setShowPlaylists] = useState(false);
   const [showQueue, setShowQueue] = useState(false);
-  const [legalDocument, setLegalDocument] = useState<LegalDocument>(null);
   const [onboardingComplete, setOnboardingComplete] = useState<boolean | null>(null);
   const [importMode, setImportMode] = useState<ImportMode>(null);
   const [draftText, setDraftText] = useState('');
@@ -251,6 +250,13 @@ function SoundocApp() {
     setDraftText(''); setDraftLink(''); setDraftTitle(''); setImportMode(mode);
   };
 
+  const openLegal = useCallback((document: LegalDocument) => {
+    if (!document) return;
+    void Linking.openURL(getLegalUrl(document)).catch(() => {
+      Alert.alert('Unable to open legal document', 'Please check your connection and try again.');
+    });
+  }, []);
+
   const makeItem = (text: string, itemType: ItemType, title?: string, source?: string, sourceUrl?: string, metadata?: Partial<LibraryItem>): LibraryItem => {
     const cleaned = cleanText(text);
     const now = Date.now();
@@ -406,7 +412,7 @@ function SoundocApp() {
       {onboardingComplete === null ? <LoadingScreen /> : <>
       {screen === 'home' && <HomeScreen items={recentItems} continueItem={continueItem} queue={queue} onOpenQueue={() => setShowQueue(true)} onImport={openImport} onUpload={pickDocument} onPhoto={() => importImageText('library')} onCamera={() => importImageText('camera')} onContinue={() => continueItem && openItem(continueItem, true)} onOpen={openItem} />}
       {screen === 'library' && <LibraryScreen items={items} playlists={playlists} onShowPlaylists={() => setShowPlaylists(true)} onOpen={openItem} onDelete={itemActions} onToggleFavorite={(item) => { const next = { ...item, favorite: !item.favorite, updatedAt: Date.now() }; persist(next); }} />}
-      {screen === 'settings' && <SettingsScreen defaults={listeningDefaults} activeItem={player.item} voices={player.voices} analytics={analytics} reduceEffects={reduceEffects} onReduceEffects={setReduceEffects} onUpdateSettings={updateListeningSettings} onPreviewVoice={player.preview} onStopPreview={player.stopPreview} onShowQueue={() => setShowQueue(true)} onShowOnboarding={showOnboardingAgain} onOpenFeedback={() => setShowFeedback(true)} onOpenLegal={setLegalDocument} />}
+      {screen === 'settings' && <SettingsScreen defaults={listeningDefaults} activeItem={player.item} voices={player.voices} analytics={analytics} reduceEffects={reduceEffects} onReduceEffects={setReduceEffects} onUpdateSettings={updateListeningSettings} onPreviewVoice={player.preview} onStopPreview={player.stopPreview} onShowQueue={() => setShowQueue(true)} onShowOnboarding={showOnboardingAgain} onOpenFeedback={() => setShowFeedback(true)} onOpenLegal={openLegal} />}
       {screen === 'player' && <PlayerScreen player={player} preferences={listeningDefaults} reduceMotion={reduceEffects} hasSummary={Boolean(summary)} onOpenSummary={() => setShowSummary(true)} onOpenLearning={openLearningTools} onOpenBookmarks={openBookmarks} onBookmark={() => addBookmark()} onHighlight={addHighlight} onUpdateSettings={updateListeningSettings} onOpenModeSelector={() => setShowModeSelector(true)} onClose={() => setScreen('home')} onOpenLibrary={() => setScreen('library')} onOpenImport={() => openImport('text')} showControls={showControls} setShowControls={setShowControls} showListeningStudio={showListeningStudio} setShowListeningStudio={setShowListeningStudio} showVoicePicker={showVoicePicker} setShowVoicePicker={setShowVoicePicker} />}
 
       {screen !== 'player' && player.item && <MiniPlayer item={player.item} state={player.state} onPress={() => setScreen('player')} onToggle={() => player.state === 'playing' ? player.pause() : player.play()} />}
@@ -418,8 +424,7 @@ function SoundocApp() {
       <PreparedModal prepared={prepared} onClose={() => setPrepared(null)} onPlay={playPrepared} onPlayNext={() => { if (prepared) addToQueue(prepared.item, true); setPrepared(null); }} onAddToQueue={() => { if (prepared) addToQueue(prepared.item); setPrepared(null); }} />
       <QueueModal visible={showQueue} items={queue} onClose={() => setShowQueue(false)} onOpen={openQueueItem} onRemove={(item) => updateQueue(queueIds.filter((id) => id !== item.id))} onClear={() => updateQueue([])} />
       <PlaylistModal visible={showPlaylists} playlists={playlists} items={items} onClose={() => setShowPlaylists(false)} onCreate={addPlaylist} onRename={editPlaylistName} onDelete={removePlaylist} onUpdateItems={updatePlaylistItems} onPlay={openItem} />
-      <SubscriptionPaywall onOpenLegal={setLegalDocument} />
-      <LegalModal document={legalDocument} onClose={() => setLegalDocument(null)} />
+      <SubscriptionPaywall onOpenLegal={openLegal} />
       <ListeningModeSheet visible={showModeSelector} preferences={listeningDefaults} voices={player.voices} activeItem={player.item} onClose={() => setShowModeSelector(false)} onApply={updateListeningSettings} onPreview={player.preview} onStopPreview={player.stopPreview} />
       <SummaryModal visible={showSummary} item={player.item} summary={summary} busy={summaryBusy} progress={summaryProgress} privacyDescription={getPrivacyDescription()} onClose={() => setShowSummary(false)} onGenerate={generateSummary} onCancel={cancelSummaryGeneration} onListen={(text) => player.playText(text, player.item?.language)} onDelete={deleteSummary} />
       <LearningToolsModal visible={showLearningTools} initialTab={learningStartTab} item={player.item} question={learningQuestion} passages={learningPassages} answer={learningAnswer} explanation={learningExplanation} cards={learningCards} review={learningReview} podcast={learningPodcast} academic={academic} spokenPreview={spokenPreview} busy={learningBusy} onClose={() => setShowLearningTools(false)} onAsk={askActiveDocument} onExplain={explainActivePassage} onCreateCards={createLearningCards} onCreatePodcast={createPodcast} onListen={(text) => player.playConversation(text.split(/\n\n+/).filter(Boolean).map((part, index) => ({ speaker: index % 2 ? 'Guest' : 'Host', text: part.replace(/^(Host|Guest):\s*/i, '') })), player.item?.language)} onListenConversation={(turns) => player.playConversation(turns)} />
