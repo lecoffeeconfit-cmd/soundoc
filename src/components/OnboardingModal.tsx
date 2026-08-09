@@ -42,7 +42,6 @@ export function OnboardingModal({ onDone }: { onDone: () => void }) {
   const previewScale = pulse.interpolate({ inputRange: [0, 1], outputRange: [0.985, 1.015] });
 
   return <Modal visible animationType="fade" onRequestClose={onDone} statusBarTranslucent><SafeAreaView style={styles.screen}>
-    <View style={styles.ambientGlow} />
     <View style={styles.top}><View><Text style={styles.brand}>Soundoc</Text><Text style={styles.brandCaption}>YOUR LISTENING GUIDE</Text></View><Pressable onPress={onDone} accessibilityRole="button" accessibilityLabel="Skip onboarding"><Text style={styles.skip}>Skip</Text></Pressable></View>
     <Animated.View style={[styles.content, { opacity: enter, transform: [{ translateY }] }]}>
       <Animated.View style={[styles.previewFrame, { transform: [{ scale: previewScale }] }]}><FeaturePreview kind={slide.kind} pulse={pulse} /></Animated.View>
@@ -67,7 +66,6 @@ function FeaturePreview({ kind, pulse }: { kind: GuideKind; pulse: Animated.Valu
 
 const styles = StyleSheet.create({
   screen: { flex: 1, overflow: 'hidden', backgroundColor: colors.backgroundPrimary, paddingHorizontal: space.xl, paddingTop: space.md, paddingBottom: space.xxl, justifyContent: 'space-between' },
-  ambientGlow: { position: 'absolute', width: 340, height: 240, borderRadius: radius.pill, backgroundColor: colors.accentPrimary, opacity: 0.05, alignSelf: 'center', top: 76, transform: [{ scaleX: 1.18 }] },
   top: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', zIndex: 1 }, brand: { ...type.title, color: colors.textPrimary, letterSpacing: -0.8 }, brandCaption: { ...type.caption, color: colors.textTertiary, letterSpacing: 1.1, marginTop: 1 }, skip: { ...type.label, color: colors.textSecondary, paddingHorizontal: space.xs, paddingVertical: space.sm },
   content: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingTop: space.sm },
   previewFrame: { width: '100%', minHeight: 248, borderRadius: radius.xlarge, padding: 1, backgroundColor: 'rgba(255,255,255,0.06)', shadowColor: '#000', shadowOpacity: 0.4, shadowOffset: { width: 0, height: 16 }, shadowRadius: 24, elevation: 10 },

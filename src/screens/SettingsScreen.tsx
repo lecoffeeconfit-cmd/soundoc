@@ -9,6 +9,7 @@ import { VoicePicker } from '../components/VoicePicker';
 import { ListeningModeSheet } from '../components/ListeningModeSheet';
 import { RecommendedListeningSwitch } from '../components/RecommendedListeningSwitch';
 import { SoundocToggle } from '../components/SoundocToggle';
+import { SubscriptionSettingsSection } from '../components/SubscriptionSettingsSection';
 import { modeProfileFor, modeSummary, normalizeListeningModeId, recommendedProfileFor } from '../lib/listeningModes';
 import { filterLongNumbersAndCodes } from '../lib/text';
 import { applyReadingRules } from '../lib/speechText';
@@ -54,6 +55,7 @@ export function SettingsScreen({ defaults, activeItem, voices, analytics, reduce
   return <>
     <ScrollView contentContainerStyle={styles.screen} showsVerticalScrollIndicator={false}>
       <Text style={styles.title}>Settings</Text><Text style={styles.subtitle}>Simple defaults, always adjustable.</Text>
+      <SubscriptionSettingsSection />
       <RecommendedListeningSwitch enabled={goldenActive} classification={recommendedProfileFor(activeItem).classification} reduceEffects={reduceEffects} onValueChange={(value) => onUpdateSettings(value ? applyGoldenPreset() : { modeId: 'custom', presetId: 'custom', recommendedListening: false })} />
       <View style={styles.podcastCard}><View style={styles.podcastCardHeader}><View style={styles.podcastBadge}><Text style={styles.podcastBadgeText}>✦</Text></View><View style={styles.rowCopy}><Text style={styles.podcastTitle}>Cleaner listening</Text><Text style={styles.podcastDescription}>Make pages sound prepared, not scraped.</Text></View></View><PodcastToggleRow label="Skip source clutter" detail="Skips source lists, citations, links, and random long numbers" value={defaults.smartFilteringEnabled !== false} onChange={(value) => onUpdateSettings({ smartFilteringEnabled: value })} /><PodcastToggleRow label="Podcast pacing" detail="Adds natural breathing room between sections" value={defaults.podcastModeEnabled === true} onChange={(value) => onUpdateSettings({ podcastModeEnabled: value })} /></View>
       <Section title="Listening" onInfoPress={() => setPanel('guide')}>

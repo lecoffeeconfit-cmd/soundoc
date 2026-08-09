@@ -39,6 +39,10 @@ import { ListeningModeSheet } from './src/components/ListeningModeSheet';
 import { ListeningStudioModal } from './src/components/ListeningStudioScreen';
 import { LoadingScreen } from './src/components/LoadingScreen';
 import { FeedbackCenter } from './src/components/FeedbackCenter';
+import { SubscriptionProvider } from './src/context/SubscriptionContext';
+import { useSubscription } from './src/hooks/useSubscription';
+import { SubscriptionStatusCard } from './src/components/SubscriptionStatusCard';
+import { SubscriptionPaywall } from './src/components/SubscriptionPaywall';
 import { modeSummary } from './src/lib/listeningModes';
 import { applyGoldenPreset, GOLDEN_PRESET, isGoldenControlledChange } from './src/lib/goldenListening';
 
@@ -56,7 +60,8 @@ const defaultSpeechPreferences: SpeechPreferences = { presetId: 'recommended', m
 type ListeningSettings = SpeechPreferences;
 const summaryStorageKey = (documentId: string, result: Pick<SummaryResult, 'contentHash' | 'format' | 'length' | 'provider'>) => `soundoc.summary.${documentId}.${result.contentHash}.${result.format}.${result.length}.${result.provider}`;
 
-export default function App() {
+function SoundocApp() {
+  const subscription = useSubscription();
   const [screen, setScreen] = useState<Screen>('home');
   const [items, setItems] = useState<LibraryItem[]>([]);
   const [queueIds, setQueueIds] = useState<string[]>([]);
@@ -154,6 +159,7 @@ export default function App() {
   }, [player.item?.id]);
 
   const generateSummary = useCallback(async (length: SummaryLength, format: SummaryFormat) => {
+    if (!subscription.requirePro()) return;
     const active = player.item; if (!active) return;
     summarySignal.current = { cancelled: false }; setSummaryBusy(true); setSummaryProgress('Preparing document');
     try {
@@ -162,7 +168,7 @@ export default function App() {
       await AsyncStorage.setItem(summaryStorageKey(active.id, result), JSON.stringify(result)); setSummary(result);
     } catch (error) { if (!summarySignal.current.cancelled) Alert.alert('Couldn’t create summary', error instanceof Error ? error.message : 'Try again with a little more text.'); }
     finally { setSummaryBusy(false); setSummaryProgress(''); }
-  }, [player.item]);
+  }, [player.item, subscription]);
   const cancelSummaryGeneration = useCallback(() => { summarySignal.current.cancelled = true; void cancelSummary(); setSummaryBusy(false); setSummaryProgress(''); }, []);
   const deleteSummary = useCallback(() => { const active = player.item; if (!active || !summary) return; void AsyncStorage.removeItem(summaryStorageKey(active.id, summary)); void AsyncStorage.removeItem(`soundoc.summary.${active.id}.${summary.contentHash}`); setSummary(null); }, [player.item, summary]);
 
@@ -180,7 +186,10 @@ export default function App() {
   }, [player.item, player.sentences]);
   const createLearningCards = useCallback(() => { const active = player.item; if (!active) return; setLearningCards(generateFlashcards(active.cleanedText ?? active.text, active.sections)); setLearningReview(generateReviewQuestions(active.cleanedText ?? active.text, active.sections)); }, [player.item]);
   const createPodcast = useCallback(() => { const active = player.item; if (!active) return; setLearningPodcast(podcastScript(active.cleanedText ?? active.text, active.sections)); }, [player.item]);
-  const openLearningTools = useCallback((tab: LearningToolTab = 'ask') => { setLearningStartTab(tab); if (tab === 'podcast') createPodcast(); if (tab === 'review') createLearningCards(); setShowLearningTools(true); }, [createLearningCards, createPodcast]);
+  const openLearningTools = useCallback((tab: LearningToolTab = 'ask') => {
+    if (!subscription.requirePro()) return;
+    setLearningStartTab(tab); if (tab === 'podcast') createPodcast(); if (tab === 'review') createLearningCards(); setShowLearningTools(true);
+  }, [createLearningCards, createPodcast, subscription]);
   const spokenPreview = useMemo(() => { if (!player.item) return null; const original = player.item.originalText ?? player.item.text; const spoken = processSpeechText(original, listeningDefaults, player.item.language).map((chunk) => chunk.text).join('\n\n'); return compareOriginalAndSpoken(original, spoken); }, [listeningDefaults, player.item]);
   const academic = useMemo(() => player.item ? academicText(player.item.cleanedText ?? player.item.text, player.item.sections) : [], [player.item]);
 
@@ -409,6 +418,7 @@ export default function App() {
       <PreparedModal prepared={prepared} onClose={() => setPrepared(null)} onPlay={playPrepared} onPlayNext={() => { if (prepared) addToQueue(prepared.item, true); setPrepared(null); }} onAddToQueue={() => { if (prepared) addToQueue(prepared.item); setPrepared(null); }} />
       <QueueModal visible={showQueue} items={queue} onClose={() => setShowQueue(false)} onOpen={openQueueItem} onRemove={(item) => updateQueue(queueIds.filter((id) => id !== item.id))} onClear={() => updateQueue([])} />
       <PlaylistModal visible={showPlaylists} playlists={playlists} items={items} onClose={() => setShowPlaylists(false)} onCreate={addPlaylist} onRename={editPlaylistName} onDelete={removePlaylist} onUpdateItems={updatePlaylistItems} onPlay={openItem} />
+      <SubscriptionPaywall onOpenLegal={setLegalDocument} />
       <LegalModal document={legalDocument} onClose={() => setLegalDocument(null)} />
       <ListeningModeSheet visible={showModeSelector} preferences={listeningDefaults} voices={player.voices} activeItem={player.item} onClose={() => setShowModeSelector(false)} onApply={updateListeningSettings} onPreview={player.preview} onStopPreview={player.stopPreview} />
       <SummaryModal visible={showSummary} item={player.item} summary={summary} busy={summaryBusy} progress={summaryProgress} privacyDescription={getPrivacyDescription()} onClose={() => setShowSummary(false)} onGenerate={generateSummary} onCancel={cancelSummaryGeneration} onListen={(text) => player.playText(text, player.item?.language)} onDelete={deleteSummary} />
@@ -422,10 +432,15 @@ export default function App() {
   );
 }
 
+export default function App() {
+  return <SubscriptionProvider><SoundocApp /></SubscriptionProvider>;
+}
+
 function HomeScreen({ items, continueItem, queue, onOpenQueue, onImport, onUpload, onPhoto, onCamera, onContinue, onOpen }: { items: LibraryItem[]; continueItem?: LibraryItem; queue: LibraryItem[]; onOpenQueue: () => void; onImport: (mode: ImportMode) => void; onUpload: () => void; onPhoto: () => void; onCamera: () => void; onContinue: () => void; onOpen: (item: LibraryItem) => void }) {
   return <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
     <View style={styles.brandRow}><View><Text style={styles.brandMark}>Soundoc</Text><Text style={styles.eyebrow}>PRIVATE LISTENING</Text></View><View style={styles.privacy}><Text style={styles.privacyIcon}>⌁</Text><Text style={styles.privacyText}>On your iPhone</Text></View></View>
     <Text style={styles.display}>{copy.homeTitle}</Text><Text style={styles.intro}>{copy.homeSubtitle}</Text>
+    <SubscriptionStatusCard />
     <View style={styles.importGroup}>
       <ImportButton symbol="T" title="Type or Paste Text" description="Write notes or paste an email, message, or article" onPress={() => onImport('text')} primary />
       <ImportButton symbol="↗" title="Paste Article Link" description="Turn a public webpage into clean audio" onPress={() => onImport('link')} />
