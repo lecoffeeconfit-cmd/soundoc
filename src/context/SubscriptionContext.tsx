@@ -1,7 +1,9 @@
 import type { PropsWithChildren } from 'react';
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { AppState, Linking } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import Purchases, { type CustomerInfo, INTRO_ELIGIBILITY_STATUS, type IntroEligibility, type PurchasesOffering, type PurchasesPackage } from 'react-native-purchases';
+import { consumeFreeListeningUsage, createFreeListeningUsage, FREE_LISTENING_STORAGE_KEY, freeListeningResetLabel, freeUsagePercent, localWeekResetDate, normalizeFreeListeningUsage, type FreeListeningUpdate, type FreeListeningUsage, validateFreeListeningUsage } from '../lib/freeListening';
 import { configureRevenueCat, messageForRevenueCatError, REVENUECAT_ANNUAL_PACKAGE_ID, REVENUECAT_ENTITLEMENT_ID, REVENUECAT_MONTHLY_PACKAGE_ID, REVENUECAT_OFFERING_ID, revenueCatConfigurationIssue } from '../lib/revenueCat';
 
 type SubscriptionNotice = { title: string; message: string } | null;
@@ -12,6 +14,15 @@ type SubscriptionContextValue = {
   isPurchasing: boolean;
   isPro: boolean;
   isTrialing: boolean;
+  isFree: boolean;
+  isPlaybackAccessReady: boolean;
+  freeListeningSecondsRemaining: number;
+  freeUsagePercent: number;
+  freeResetDate: number | null;
+  freeResetLabel: string | null;
+  canStartPlayback: () => boolean;
+  consumeFreeListening: (elapsedSeconds: number) => Pick<FreeListeningUpdate, 'remainingSeconds' | 'reachedLimit' | 'crossedLowAllowance'>;
+  refreshFreeListeningUsage: () => void;
   trialExpirationDate: string | null;
   trialDaysRemaining: number | null;
   subscriptionExpirationDate: string | null;
@@ -64,19 +75,57 @@ export function SubscriptionProvider({ children }: PropsWithChildren) {
   const [isLoading, setIsLoading] = useState(true);
   const [isPurchasing, setIsPurchasing] = useState(false);
   const [customerInfo, setCustomerInfo] = useState<CustomerInfo | null>(null);
+  const [hasResolvedEntitlement, setHasResolvedEntitlement] = useState(false);
   const [currentOffering, setCurrentOffering] = useState<PurchasesOffering | null>(null);
   const [trialEligibility, setTrialEligibility] = useState<Record<string, IntroEligibility>>({});
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<SubscriptionNotice>(null);
   const [isPaywallVisible, setIsPaywallVisible] = useState(false);
   const [trialClock, setTrialClock] = useState(() => Date.now());
+  const [freeUsage, setFreeUsage] = useState<FreeListeningUsage | null>(null);
   const configured = useRef(false);
   const expiredTrialRefresh = useRef<string | null>(null);
+  const freeUsageRef = useRef<FreeListeningUsage | null>(null);
+  const freeUsageWrite = useRef<Promise<void>>(Promise.resolve());
 
   const applyCustomerInfo = useCallback((info: CustomerInfo) => {
     setCustomerInfo(info);
+    setHasResolvedEntitlement(true);
     setError(null);
   }, []);
+
+  const persistFreeUsage = useCallback((next: FreeListeningUsage) => {
+    freeUsageWrite.current = freeUsageWrite.current
+      .catch(() => undefined)
+      .then(() => AsyncStorage.setItem(FREE_LISTENING_STORAGE_KEY, JSON.stringify(next)))
+      .catch(() => undefined);
+  }, []);
+
+  const setCurrentFreeUsage = useCallback((next: FreeListeningUsage, persist = true) => {
+    freeUsageRef.current = next;
+    setFreeUsage(next);
+    if (persist) persistFreeUsage(next);
+  }, [persistFreeUsage]);
+
+  useEffect(() => {
+    let mounted = true;
+    void AsyncStorage.getItem(FREE_LISTENING_STORAGE_KEY).then((stored) => {
+      let next = createFreeListeningUsage();
+      if (stored) {
+        try {
+          const validated = validateFreeListeningUsage(JSON.parse(stored));
+          next = normalizeFreeListeningUsage(validated).usage;
+        } catch {
+          next = createFreeListeningUsage();
+        }
+      }
+      if (!mounted) return;
+      setCurrentFreeUsage(next, !stored || stored !== JSON.stringify(next));
+    }).catch(() => {
+      if (mounted) setCurrentFreeUsage(createFreeListeningUsage());
+    });
+    return () => { mounted = false; };
+  }, [setCurrentFreeUsage]);
 
   const loadOffering = useCallback(async () => {
     const offerings = await Purchases.getOfferings();
@@ -143,6 +192,49 @@ export function SubscriptionProvider({ children }: PropsWithChildren) {
   const trialExpirationDate = isTrialing ? subscriptionExpirationDate : null;
   const monthlyPackage = findPackage(currentOffering, REVENUECAT_MONTHLY_PACKAGE_ID);
   const annualPackage = findPackage(currentOffering, REVENUECAT_ANNUAL_PACKAGE_ID);
+  // A failed store refresh must not immediately downgrade a cached Premium listener.
+  const isFree = isInitialized && !isPro && (hasResolvedEntitlement || !configured.current);
+  const isPlaybackAccessReady = !isFree || freeUsageRef.current !== null;
+
+  const refreshFreeListeningUsage = useCallback(() => {
+    const normalized = normalizeFreeListeningUsage(freeUsageRef.current);
+    const current = freeUsageRef.current;
+    if (!current || current.periodStart !== normalized.usage.periodStart || current.usedSeconds !== normalized.usage.usedSeconds || current.lowAllowanceNoticeShown !== normalized.usage.lowAllowanceNoticeShown) {
+      setCurrentFreeUsage(normalized.usage);
+    }
+  }, [setCurrentFreeUsage]);
+
+  const canStartPlayback = useCallback(() => {
+    if (!isFree) return true;
+    if (!freeUsageRef.current) return false;
+    const normalized = normalizeFreeListeningUsage(freeUsageRef.current);
+    const current = freeUsageRef.current;
+    if (!current || current.periodStart !== normalized.usage.periodStart || current.usedSeconds !== normalized.usage.usedSeconds || current.lowAllowanceNoticeShown !== normalized.usage.lowAllowanceNoticeShown) {
+      setCurrentFreeUsage(normalized.usage);
+    }
+    return normalized.remainingSeconds > 0;
+  }, [isFree, setCurrentFreeUsage]);
+
+  const consumeFreeListening = useCallback((elapsedSeconds: number) => {
+    if (!isFree) return { remainingSeconds: Number.POSITIVE_INFINITY, reachedLimit: false, crossedLowAllowance: false };
+    const update = consumeFreeListeningUsage(freeUsageRef.current, elapsedSeconds);
+    setCurrentFreeUsage(update.usage);
+    return { remainingSeconds: update.remainingSeconds, reachedLimit: update.reachedLimit, crossedLowAllowance: update.crossedLowAllowance };
+  }, [isFree, setCurrentFreeUsage]);
+
+  useEffect(() => {
+    if (!isFree || !freeUsage) return;
+    const untilReset = Math.max(1_000, localWeekResetDate() - Date.now() + 50);
+    const timer = setTimeout(refreshFreeListeningUsage, untilReset);
+    return () => clearTimeout(timer);
+  }, [freeUsage, isFree, refreshFreeListeningUsage]);
+
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', (nextState) => {
+      if (nextState === 'active') refreshFreeListeningUsage();
+    });
+    return () => subscription.remove();
+  }, [refreshFreeListeningUsage]);
 
   useEffect(() => {
     if (!trialExpirationDate) return;
@@ -161,6 +253,16 @@ export function SubscriptionProvider({ children }: PropsWithChildren) {
     const timer = setTimeout(() => setTrialClock(Date.now()), Math.max(1_000, untilNextDisplayChange + 50));
     return () => clearTimeout(timer);
   }, [refreshCustomerInfo, trialClock, trialExpirationDate]);
+
+  useEffect(() => {
+    if (!isPro || !subscriptionExpirationDate) return;
+    const expiration = new Date(subscriptionExpirationDate).getTime();
+    if (!Number.isFinite(expiration)) return;
+    const remaining = expiration - Date.now();
+    if (remaining <= 0) { void refreshCustomerInfo(); return; }
+    const timer = setTimeout(() => void refreshCustomerInfo(), remaining + 100);
+    return () => clearTimeout(timer);
+  }, [isPro, refreshCustomerInfo, subscriptionExpirationDate]);
 
   const purchase = useCallback(async (packageToPurchase: PurchasesPackage | null) => {
     if (!packageToPurchase) {
@@ -251,7 +353,12 @@ export function SubscriptionProvider({ children }: PropsWithChildren) {
   const clearNotice = useCallback(() => setNotice(null), []);
 
   const value = useMemo<SubscriptionContextValue>(() => ({
-    isInitialized, isLoading, isPurchasing, isPro, isTrialing,
+    isInitialized, isLoading, isPurchasing, isPro, isTrialing, isFree, isPlaybackAccessReady,
+    freeListeningSecondsRemaining: isFree ? normalizeFreeListeningUsage(freeUsage).remainingSeconds : 0,
+    freeUsagePercent: isFree ? freeUsagePercent(freeUsage) : 0,
+    freeResetDate: isFree ? localWeekResetDate() : null,
+    freeResetLabel: isFree ? freeListeningResetLabel() : null,
+    canStartPlayback, consumeFreeListening, refreshFreeListeningUsage,
     trialExpirationDate, trialDaysRemaining: isTrialing ? futureDaysRemaining(trialExpirationDate, trialClock) : null,
     subscriptionExpirationDate, activeProductIdentifier: activeEntitlement?.productIdentifier ?? null,
     willRenew: activeEntitlement?.willRenew ?? null,
@@ -260,7 +367,7 @@ export function SubscriptionProvider({ children }: PropsWithChildren) {
     currentOffering, monthlyPackage, annualPackage, trialEligibility, error, notice, isPaywallVisible,
     refreshCustomerInfo, purchaseMonthly: () => purchase(monthlyPackage), purchaseAnnual: () => purchase(annualPackage), restorePurchases,
     openSubscriptionManagement, openPaywall, closePaywall, requirePro, clearNotice,
-  }), [activeEntitlement, annualPackage, clearNotice, closePaywall, currentOffering, customerInfo?.managementURL, error, isInitialized, isLoading, isPaywallVisible, isPro, isPurchasing, isTrialing, monthlyPackage, notice, openPaywall, openSubscriptionManagement, purchase, refreshCustomerInfo, requirePro, restorePurchases, subscriptionExpirationDate, trialClock, trialEligibility, trialExpirationDate]);
+  }), [activeEntitlement, annualPackage, canStartPlayback, clearNotice, closePaywall, consumeFreeListening, currentOffering, customerInfo?.managementURL, error, freeUsage, isFree, isInitialized, isLoading, isPaywallVisible, isPlaybackAccessReady, isPro, isPurchasing, isTrialing, monthlyPackage, notice, openPaywall, openSubscriptionManagement, purchase, refreshCustomerInfo, refreshFreeListeningUsage, requirePro, restorePurchases, subscriptionExpirationDate, trialClock, trialEligibility, trialExpirationDate]);
 
   return <SubscriptionContext.Provider value={value}>{children}</SubscriptionContext.Provider>;
 }

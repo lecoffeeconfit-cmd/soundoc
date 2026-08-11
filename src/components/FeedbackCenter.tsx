@@ -15,18 +15,18 @@ export function FeedbackCenter({ visible, onClose }: { visible: boolean; onClose
   const [category, setCategory] = useState<FeedbackCategory | null>(null);
   const [message, setMessage] = useState('');
   const [rating, setRating] = useState<FeedbackRating>();
-  const [includeDiagnostics, setIncludeDiagnostics] = useState(true);
+  const [includeDiagnostics, setIncludeDiagnostics] = useState(false);
   const [validation, setValidation] = useState('');
   const [preparing, setPreparing] = useState(false);
 
-  const resetAndClose = () => { setCategory(null); setMessage(''); setRating(undefined); setIncludeDiagnostics(true); setValidation(''); onClose(); };
+  const resetAndClose = () => { setCategory(null); setMessage(''); setRating(undefined); setIncludeDiagnostics(false); setValidation(''); onClose(); };
   const requestClose = () => {
     if (!message.trim()) { resetAndClose(); return; }
     Alert.alert('Discard feedback?', 'Your message has not been sent yet.', [{ text: 'Keep editing', style: 'cancel' }, { text: 'Discard', style: 'destructive', onPress: resetAndClose }]);
   };
   const email = () => buildFeedbackEmail({ category: category!, message, rating, includeDiagnostics, openedFrom: 'Settings' });
-  const copyAddress = async () => { await Clipboard.setStringAsync(FEEDBACK_RECIPIENT); Alert.alert('Email copied', 'Paste it into any email app to contact Soundoc support.'); };
-  const copyFeedback = async () => { await Clipboard.setStringAsync(email().body); Alert.alert('Feedback copied', 'Your feedback message is ready to paste into an email.'); };
+  const copyAddress = async () => { try { await Clipboard.setStringAsync(FEEDBACK_RECIPIENT); Alert.alert('Email copied', 'Paste it into any email app to contact Soundoc support.'); } catch { Alert.alert('Couldn’t copy email', 'Please use your email app to contact Soundoc support.'); } };
+  const copyFeedback = async () => { try { await Clipboard.setStringAsync(email().body); Alert.alert('Feedback copied', 'Your feedback message is ready to paste into an email.'); } catch { Alert.alert('Couldn’t copy feedback', 'Please keep this form open and try again.'); } };
   const showUnavailable = () => Alert.alert('Email Isn’t Available', 'Soundoc couldn’t open an email app on this device.', [{ text: 'Copy address', onPress: () => { void copyAddress(); } }, { text: 'Copy feedback', onPress: () => { void copyFeedback(); } }, { text: 'Cancel', style: 'cancel' }]);
 
   const send = async () => {
@@ -39,7 +39,7 @@ export function FeedbackCenter({ visible, onClose }: { visible: boolean; onClose
       const draft = email();
       const result = await MailComposer.composeAsync({ recipients: [FEEDBACK_RECIPIENT], subject: draft.subject, body: draft.body, isHtml: false });
       if (result.status === MailComposer.MailComposerStatus.SENT) {
-        setCategory(null); setMessage(''); setRating(undefined); setIncludeDiagnostics(true);
+        setCategory(null); setMessage(''); setRating(undefined); setIncludeDiagnostics(false);
         Alert.alert('Feedback sent', 'Thanks for helping improve Soundoc.');
       } else if (result.status === MailComposer.MailComposerStatus.SAVED) {
         Alert.alert('Draft saved', 'Your feedback was saved in your email app and has not been sent yet.');

@@ -7,7 +7,7 @@ import type { SoundocSection, SoundocSourceType } from '../types';
 const MAX_FILE_BYTES = 25 * 1024 * 1024;
 const MAX_UNPACKED_BYTES = 60 * 1024 * 1024;
 
-export type ImportedDocument = { text: string; title?: string; format: string; sourceUrl?: string; sourceType?: SoundocSourceType; originalText?: string; sections?: SoundocSection[]; author?: string; extractionMethod?: string; extractionConfidence?: number; extractionWarnings?: string[] };
+export type ImportedDocument = { text: string; title?: string; format: string; sourceUrl?: string; sourceType?: SoundocSourceType; originalText?: string; sections?: SoundocSection[]; author?: string; extractionMethod?: string; extractionConfidence?: number; extractionWarnings?: string[]; pageCount?: number };
 export type ArticleExtraction = ImportedDocument & { sourceDomain: string; authors: string[]; abstract?: string; confidence: number; suspicious: boolean; warnings: string[]; method: 'json-ld' | 'semantic' | 'readability' | 'fallback' };
 
 function enrichImportedDocument(document: ImportedDocument, sourceType: SoundocSourceType, extractionMethod: string, originalText?: string): ImportedDocument {
@@ -97,7 +97,8 @@ function extractPdf(bytes: Uint8Array): ImportedDocument {
   }
   const text = cleanText(candidates.map(pdfOperators).join('\n'));
   if (text.length < 20) throw new Error('This PDF appears to contain scanned images or unsupported text encoding.');
-  return { text, format: 'PDF' };
+  const pageCount = Math.max(1, (raw.match(/\/Type\s*\/Page\b/g) ?? []).length);
+  return { text, format: 'PDF', pageCount };
 }
 
 function extractRtf(source: string): ImportedDocument {

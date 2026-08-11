@@ -56,7 +56,55 @@ export type LibraryItem = {
   tags?: string[];
   sourceUri?: string;
   selectedModeId?: ListeningModeId;
+  /** Small documents keep their readable text in this row; book-sized imports use persisted chunks. */
+  storageMode?: 'inline' | 'chunked';
+  processingStatus?: LargeDocumentStatus;
+  processingProgress?: number;
+  processedUnits?: number;
+  totalUnits?: number;
+  fileSize?: number;
+  pageCount?: number;
+  estimatedDurationSeconds?: number;
+  currentChunkIndex?: number;
+  processingError?: string;
 };
+
+export type LargeDocumentStatus = 'imported' | 'queued' | 'analyzing' | 'processing' | 'partiallyReady' | 'ready' | 'paused' | 'failed' | 'needsOCR';
+
+export type LargeDocumentInfo = {
+  documentId: string;
+  originalFileName?: string;
+  sourceUri?: string;
+  format: string;
+  mimeType?: string;
+  fileSize?: number;
+  pageCount?: number;
+  status: LargeDocumentStatus;
+  processedUnits: number;
+  totalUnits?: number;
+  processedBytes: number;
+  totalBytes?: number;
+  wordCount: number;
+  estimatedDurationSeconds: number;
+  errorMessage?: string;
+  createdAt: number;
+  updatedAt: number;
+};
+
+export type DocumentTextChunk = {
+  id: string;
+  documentId: string;
+  sequence: number;
+  text: string;
+  wordCount: number;
+  estimatedDurationSeconds: number;
+  sectionId?: string;
+  sectionTitle?: string;
+  sourceStart?: number;
+  sourceEnd?: number;
+};
+
+export type DocumentChapter = { documentId: string; id: string; title: string; sequence: number };
 
 export type Bookmark = { id: string; libraryItemId: string; sectionId?: string; paragraphIndex?: number; sentenceIndex: number; label?: string; note?: string; createdAt: number; updatedAt: number };
 export type Highlight = { id: string; libraryItemId: string; sectionId?: string; startOffset: number; endOffset: number; text: string; note?: string; createdAt: number; updatedAt: number };

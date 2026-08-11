@@ -121,7 +121,17 @@ export function safePublicUrl(value: string): URL | undefined {
   try {
     const url = new URL(value.trim());
     const host = url.hostname.toLowerCase();
-    const privateHost = host === 'localhost' || host.endsWith('.local') || /^127\.|^0\.|^10\.|^192\.168\.|^172\.(1[6-9]|2\d|3[0-1])\./.test(host) || host.includes(':');
-    return (url.protocol === 'https:' || url.protocol === 'http:') && !privateHost ? url : undefined;
+    const octets = host.split('.').map((part) => Number(part));
+    const isIpv4 = octets.length === 4 && octets.every((part) => Number.isInteger(part) && part >= 0 && part <= 255);
+    const first = octets[0] ?? -1;
+    const second = octets[1] ?? -1;
+    const privateIpv4 = isIpv4 && (first === 0 || first === 10 || first === 127 || first === 169 && second === 254 || first === 192 && second === 0 || first === 192 && second === 168 || first === 198 && (second === 18 || second === 19) || first === 198 && second === 51 || first === 203 && second === 0 || first >= 224 || first === 172 && second >= 16 && second <= 31);
+    const privateHost = host === 'localhost' || host.endsWith('.local') || host.endsWith('.localhost') || host.endsWith('.internal') || host.endsWith('.intranet') || host.endsWith('.home.arpa') || privateIpv4 || host.includes(':');
+    return (url.protocol === 'https:' || url.protocol === 'http:') && !url.username && !url.password && !privateHost ? url : undefined;
   } catch { return undefined; }
+}
+
+export function safePublicRedirectUrl(base: URL, location: string | null): URL | undefined {
+  if (!location) return undefined;
+  try { return safePublicUrl(new URL(location, base).toString()); } catch { return undefined; }
 }

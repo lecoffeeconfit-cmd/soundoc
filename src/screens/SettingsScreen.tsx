@@ -8,39 +8,44 @@ import { SkeuoSwitch } from '../components/SkeuoSwitch';
 import { VoicePicker } from '../components/VoicePicker';
 import { ListeningModeSheet } from '../components/ListeningModeSheet';
 import { RecommendedListeningSwitch } from '../components/RecommendedListeningSwitch';
+import { GoldenSettingsSheet } from '../components/GoldenSettingsSheet';
+import { GoldenFeedbackCard } from '../components/GoldenFeedbackCard';
 import { SoundocToggle } from '../components/SoundocToggle';
 import { SubscriptionSettingsSection } from '../components/SubscriptionSettingsSection';
-import { modeProfileFor, modeSummary, normalizeListeningModeId, recommendedProfileFor } from '../lib/listeningModes';
+import { modeProfileFor, modeSummary, normalizeListeningModeId, recommendedProfileFor, resolveRuntimeSpeechPreferences } from '../lib/listeningModes';
 import { filterLongNumbersAndCodes } from '../lib/text';
 import { applyReadingRules } from '../lib/speechText';
 import { applyGoldenPreset, getBestGoldenVoice, isGoldenPresetActive } from '../lib/goldenListening';
+import type { GoldenAdaptiveProfile, GoldenFeedbackReason } from '../lib/goldenPersonalization';
 import type { LibraryItem, ListeningAnalytics, PronunciationRule, SpeechPreferences, Voice } from '../types';
 import type { LegalDocument } from '../types/legal';
 
 type Panel = 'speed' | 'voice' | 'pitch' | 'volume' | 'pauses' | 'pronunciation' | 'rules' | 'guide' | null;
-type Props = { defaults: SpeechPreferences; activeItem?: LibraryItem | null; voices: Voice[]; analytics?: ListeningAnalytics | null; reduceEffects: boolean; onReduceEffects: (value: boolean) => void; onUpdateSettings: (settings: Partial<SpeechPreferences>) => void; onPreviewVoice: (settings: Pick<SpeechPreferences, 'voiceIdentifier' | 'rate' | 'pitch' | 'volume'>) => void; onStopPreview: () => void; onShowQueue: () => void; onShowOnboarding: () => void; onOpenFeedback: () => void; onOpenLegal: (document: LegalDocument) => void };
+type Props = { defaults: SpeechPreferences; activeItem?: LibraryItem | null; voices: Voice[]; goldenProfile?: GoldenAdaptiveProfile | null; showGoldenFeedback: boolean; analytics?: ListeningAnalytics | null; reduceEffects: boolean; onReduceEffects: (value: boolean) => void; onUpdateSettings: (settings: Partial<SpeechPreferences>) => void; onGoldenGood: () => void; onGoldenNotQuite: () => void; onGoldenReason: (reason: GoldenFeedbackReason) => void; onDismissGoldenFeedback: () => void; onResetGoldenProfile: () => void; onUndoGoldenAdjustment: () => void; onPreviewVoice: (settings: Pick<SpeechPreferences, 'voiceIdentifier' | 'rate' | 'pitch' | 'volume'>) => void; onStopPreview: () => void; onShowQueue: () => void; onShowOnboarding: () => void; onOpenFeedback: () => void; onOpenLegal: (document: LegalDocument) => void };
 
 const speedOptions = [0.5, 0.75, 1, 1.25, 1.5, 1.75, 2];
 const pitchOptions = [{ label: 'Very Low', value: 0.6 }, { label: 'Low', value: 0.8 }, { label: 'Natural', value: 1 }, { label: 'High', value: 1.25 }, { label: 'Very High', value: 1.5 }] as const;
 const studioDefaults: SpeechPreferences = { presetId: 'natural', modeId: 'natural', voiceIdentifier: undefined, voiceName: undefined, voiceLocale: undefined, rate: 1, pitch: 1, volume: 1, sentencePauseMs: 220, paragraphPauseMs: 550, headingPauseMs: 750, pronunciationRules: [], skipHeadings: false, skipUrls: true, skipCitations: false, skipSiteBoilerplate: true, skipNavigationAndAds: true, skipConsecutiveDuplicates: true, skipLongNumbersAndCodes: false, favoriteVoiceIds: [], recentVoiceIds: [], recommendedListening: false };
 
-export function SettingsScreen({ defaults, activeItem, voices, analytics, reduceEffects, onReduceEffects, onUpdateSettings, onPreviewVoice, onStopPreview, onShowQueue, onShowOnboarding, onOpenFeedback, onOpenLegal }: Props) {
+export function SettingsScreen({ defaults, activeItem, voices, goldenProfile, showGoldenFeedback, analytics, reduceEffects, onReduceEffects, onUpdateSettings, onGoldenGood, onGoldenNotQuite, onGoldenReason, onDismissGoldenFeedback, onResetGoldenProfile, onUndoGoldenAdjustment, onPreviewVoice, onStopPreview, onShowQueue, onShowOnboarding, onOpenFeedback, onOpenLegal }: Props) {
   const [panel, setPanel] = useState<Panel>(null);
   const [showModeSheet, setShowModeSheet] = useState(false);
+  const [showGoldenSettings, setShowGoldenSettings] = useState(false);
   const selectedVoice = voices.find((voice) => voice.identifier === defaults.voiceIdentifier);
   const goldenActive = isGoldenPresetActive(defaults);
-  const goldenVoice = getBestGoldenVoice(voices, activeItem?.language ?? defaults.voiceLocale ?? 'en-US', defaults.voiceIdentifier);
+  const runtimeDefaults = goldenActive ? resolveRuntimeSpeechPreferences(defaults, activeItem, voices, goldenProfile) : defaults;
+  const goldenVoice = voices.find((voice) => voice.identifier === runtimeDefaults.voiceIdentifier) ?? getBestGoldenVoice(voices, activeItem?.language ?? defaults.voiceLocale ?? 'en-US', defaults.voiceIdentifier ?? activeItem?.selectedVoice);
   const voiceLabel = goldenActive ? (goldenVoice ? `${goldenVoice.name} · ${/^enhanced$/i.test(goldenVoice.quality ?? '') ? 'Enhanced' : 'best installed'}` : 'Automatic · system fallback') : selectedVoice?.name ?? (defaults.voiceIdentifier ? 'Automatic · unavailable' : defaults.voiceName ?? 'Automatic');
   const listeningModeLabel = modeSummary(defaults, activeItem);
   const modeManaged = normalizeListeningModeId(defaults.modeId) !== 'custom' || Boolean(defaults.recommendedListening);
   const selectedProfile = modeProfileFor(defaults.recommendedListening ? 'recommended' : defaults.modeId, defaults);
-  const effectiveRate = modeManaged ? selectedProfile.rate : defaults.rate;
-  const effectivePitch = modeManaged ? selectedProfile.pitch : defaults.pitch;
-  const effectiveVolume = modeManaged ? selectedProfile.volume : defaults.volume;
-  const effectiveSentencePause = modeManaged ? selectedProfile.sentencePauseMs : defaults.sentencePauseMs;
-  const effectiveParagraphPause = modeManaged ? selectedProfile.paragraphPauseMs : defaults.paragraphPauseMs;
+  const effectiveRate = goldenActive ? runtimeDefaults.rate : modeManaged ? selectedProfile.rate : defaults.rate;
+  const effectivePitch = goldenActive ? runtimeDefaults.pitch : modeManaged ? selectedProfile.pitch : defaults.pitch;
+  const effectiveVolume = goldenActive ? runtimeDefaults.volume : modeManaged ? selectedProfile.volume : defaults.volume;
+  const effectiveSentencePause = goldenActive ? runtimeDefaults.sentencePauseMs : modeManaged ? selectedProfile.sentencePauseMs : defaults.sentencePauseMs;
+  const effectiveParagraphPause = goldenActive ? runtimeDefaults.paragraphPauseMs : modeManaged ? selectedProfile.paragraphPauseMs : defaults.paragraphPauseMs;
   const rulesDefaults = modeManaged ? { ...defaults, ...selectedProfile.readingRules } : defaults;
-  const effectiveDefaults = modeManaged ? { ...defaults, voiceIdentifier: goldenActive ? goldenVoice?.identifier : defaults.voiceIdentifier, rate: effectiveRate, pitch: effectivePitch, volume: effectiveVolume, sentencePauseMs: effectiveSentencePause, paragraphPauseMs: effectiveParagraphPause, headingPauseMs: selectedProfile.headingPauseMs, ...selectedProfile.readingRules } : defaults;
+  const effectiveDefaults = modeManaged ? { ...defaults, voiceIdentifier: goldenActive ? runtimeDefaults.voiceIdentifier : defaults.voiceIdentifier, rate: effectiveRate, pitch: effectivePitch, volume: effectiveVolume, sentencePauseMs: effectiveSentencePause, paragraphPauseMs: effectiveParagraphPause, headingPauseMs: selectedProfile.headingPauseMs, ...selectedProfile.readingRules } : defaults;
   const speedLabel = `${effectiveRate.toFixed(2).replace(/\.00$/, '')}×`;
   const pitchLabel = pitchOptions.find((option) => option.value === effectivePitch)?.label ?? `${effectivePitch.toFixed(2)}×`;
   const volumeLabel = effectiveVolume === 0 ? 'Muted' : `${Math.round(effectiveVolume * 100)}%`;
@@ -56,7 +61,8 @@ export function SettingsScreen({ defaults, activeItem, voices, analytics, reduce
     <ScrollView contentContainerStyle={styles.screen} showsVerticalScrollIndicator={false}>
       <Text style={styles.title}>Settings</Text><Text style={styles.subtitle}>Simple defaults, always adjustable.</Text>
       <SubscriptionSettingsSection />
-      <RecommendedListeningSwitch enabled={goldenActive} classification={recommendedProfileFor(activeItem).classification} reduceEffects={reduceEffects} onValueChange={(value) => onUpdateSettings(value ? applyGoldenPreset() : { modeId: 'custom', presetId: 'custom', recommendedListening: false })} />
+      <RecommendedListeningSwitch enabled={goldenActive} feedbackAttached={goldenActive && showGoldenFeedback} classification={recommendedProfileFor(activeItem).classification} reduceEffects={reduceEffects} onOpenInspector={() => setShowGoldenSettings(true)} onValueChange={(value) => onUpdateSettings(value ? applyGoldenPreset() : { modeId: 'custom', presetId: 'custom', recommendedListening: false })} />
+      <GoldenFeedbackCard attached visible={goldenActive && showGoldenFeedback} onGood={onGoldenGood} onNotQuite={onGoldenNotQuite} onReason={onGoldenReason} onDismiss={onDismissGoldenFeedback} />
       <View style={styles.podcastCard}><View style={styles.podcastCardHeader}><View style={styles.podcastBadge}><Text style={styles.podcastBadgeText}>✦</Text></View><View style={styles.rowCopy}><Text style={styles.podcastTitle}>Cleaner listening</Text><Text style={styles.podcastDescription}>Make pages sound prepared, not scraped.</Text></View></View><PodcastToggleRow label="Skip source clutter" detail="Skips source lists, citations, links, and random long numbers" value={defaults.smartFilteringEnabled !== false} onChange={(value) => onUpdateSettings({ smartFilteringEnabled: value })} /><PodcastToggleRow label="Podcast pacing" detail="Adds natural breathing room between sections" value={defaults.podcastModeEnabled === true} onChange={(value) => onUpdateSettings({ podcastModeEnabled: value })} /></View>
       <Section title="Listening" onInfoPress={() => setPanel('guide')}>
         <Pressable style={({ pressed }) => [styles.modeRow, pressed && styles.actionPressed]} onPress={() => setShowModeSheet(true)} accessibilityRole="button" accessibilityLabel={`Listening mode, ${listeningModeLabel}`} accessibilityHint="Opens listening mode options"><View style={styles.modeRowIcon}><Text style={styles.modeRowIconText}>✦</Text></View><View style={styles.rowCopy}><Text style={styles.label}>Listening mode</Text><Text style={styles.help}>Choose how Soundoc reads this content</Text></View><View style={styles.readableValueWell}><Text style={styles.readableValueWellText} numberOfLines={2} ellipsizeMode="tail">{listeningModeLabel}</Text><Text style={styles.readableValueChevron}>›</Text></View></Pressable>
@@ -99,6 +105,7 @@ export function SettingsScreen({ defaults, activeItem, voices, analytics, reduce
       </SafeAreaView>
     </Modal>
     <ListeningModeSheet visible={showModeSheet} preferences={defaults} voices={voices} activeItem={activeItem} onClose={() => setShowModeSheet(false)} onApply={onUpdateSettings} onPreview={onPreviewVoice} onStopPreview={onStopPreview} />
+    <GoldenSettingsSheet visible={showGoldenSettings} enabled={goldenActive} preferences={defaults} profile={goldenProfile} activeItem={activeItem} voices={voices} onClose={() => setShowGoldenSettings(false)} onReset={() => { onResetGoldenProfile(); setShowGoldenSettings(false); }} onUndo={onUndoGoldenAdjustment} />
   </>;
 }
 

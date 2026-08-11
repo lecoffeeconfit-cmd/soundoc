@@ -1,6 +1,8 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { isConfirmedFreeTrial } from '../context/SubscriptionContext';
 import { useSubscription } from '../hooks/useSubscription';
+import { FREE_CRITICAL_ALLOWANCE_SECONDS, formatFreeListeningRemaining } from '../lib/freeListening';
+import { formatDuration } from '../lib/text';
 import { colors, radius, space, type } from '../lib/theme';
 
 function formatDate(value: string | null) {
@@ -13,7 +15,7 @@ function periodLabel(period: string | null) {
   return period === 'P1Y' ? 'year' : period === 'P1M' ? 'month' : 'billing period';
 }
 
-export function SubscriptionStatusCard() {
+export function SubscriptionStatusCard({ readyListeningSeconds = 0 }: { readyListeningSeconds?: number }) {
   const subscription = useSubscription();
   const eligiblePackage = isConfirmedFreeTrial(subscription.annualPackage, subscription.trialEligibility)
     ? subscription.annualPackage
@@ -45,6 +47,17 @@ export function SubscriptionStatusCard() {
     </Pressable>;
   }
 
+  if (subscription.isFree) {
+    const remaining = subscription.freeListeningSecondsRemaining;
+    const critical = remaining <= FREE_CRITICAL_ALLOWANCE_SECONDS;
+    const ready = readyListeningSeconds > 0 ? `${formatDuration(readyListeningSeconds).replace('About ', '')} ready in your Library · Unlimited imports` : 'Unlimited document imports';
+    return <Pressable onPress={subscription.openPaywall} style={({ pressed }) => [styles.card, styles.freeCard, critical && styles.freeCardCritical, pressed && styles.pressed]} accessibilityRole="button" accessibilityLabel={`Soundoc Free. ${formatFreeListeningRemaining(remaining)} this week. ${subscription.freeResetLabel ?? 'Weekly reset'}.`} accessibilityHint="Opens unlimited listening plans">
+      <View style={styles.header}><View><Text style={styles.kicker}>SOUNDOC FREE</Text><Text style={styles.freeTitle}>{formatFreeListeningRemaining(remaining)} this week</Text></View><View style={styles.ctaWell}><Text style={styles.ctaText}>Go Unlimited</Text></View></View>
+      <View style={styles.progressTrack}><View style={[styles.progressFill, critical && styles.progressFillCritical, { width: `${Math.max(3, Math.min(100, (1 - subscription.freeUsagePercent) * 100))}%` }]} /></View>
+      <View style={styles.freeFooter}><Text style={styles.detail}>{subscription.freeResetLabel ?? 'Resets Monday'}</Text><Text style={styles.ready}>{ready}</Text></View>
+    </Pressable>;
+  }
+
   return <Pressable onPress={subscription.openPaywall} style={({ pressed }) => [styles.card, pressed && styles.pressed]} accessibilityRole="button" accessibilityLabel="Explore Soundoc Pro" accessibilityHint="Opens Soundoc Pro plans">
     <View style={styles.header}><View><Text style={styles.kicker}>SOUNDOC PRO</Text><Text style={styles.title}>{eligiblePackage ? '7-day free trial' : 'Listen without limits'}</Text></View><View style={styles.ctaWell}><Text style={styles.ctaText}>{eligiblePackage ? 'Try Pro' : 'View Pro'}</Text></View></View>
     <Text style={styles.detail}>{eligiblePackage ? 'Unlock the full listening experience.' : 'Explore Soundoc Pro plans and benefits.'}</Text>
@@ -57,14 +70,20 @@ const styles = StyleSheet.create({
   card: { marginTop: space.lg, padding: space.md, borderRadius: radius.large, backgroundColor: colors.surfacePrimary, borderWidth: 1, borderTopColor: 'rgba(255,255,255,0.10)', borderBottomColor: 'rgba(0,0,0,0.68)', shadowColor: '#000', shadowOpacity: 0.24, shadowOffset: { width: 0, height: 7 }, shadowRadius: 13, elevation: 5 },
   trialCard: { backgroundColor: '#221C19', borderColor: 'rgba(255,113,56,0.34)' },
   activeCard: { backgroundColor: colors.surfaceElevated },
+  freeCard: { backgroundColor: '#1D211F', borderColor: 'rgba(216,180,90,0.26)' },
+  freeCardCritical: { borderColor: 'rgba(255,113,56,0.44)' },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: space.sm },
   kicker: { ...type.caption, color: colors.accentPrimary, letterSpacing: 1, fontSize: 10 },
   title: { ...type.heading, color: colors.textPrimary, marginTop: 3 },
+  freeTitle: { ...type.title, color: colors.textPrimary, marginTop: 3 },
   arrow: { color: colors.accentPrimary, fontSize: 27, lineHeight: 30 },
   ctaWell: { minHeight: 34, paddingHorizontal: space.sm, justifyContent: 'center', borderRadius: radius.small, backgroundColor: colors.accentPrimary },
   ctaText: { ...type.caption, color: '#FFFFFF', fontWeight: '700' },
   detail: { ...type.caption, color: colors.textSecondary, marginTop: space.sm, lineHeight: 18 },
   progressTrack: { height: 6, marginTop: space.md, overflow: 'hidden', borderRadius: radius.pill, backgroundColor: colors.remainingProgress },
   progressFill: { height: '100%', borderRadius: radius.pill, backgroundColor: colors.accentPrimary },
+  progressFillCritical: { backgroundColor: colors.warning },
+  freeFooter: { marginTop: space.sm, gap: 2 },
+  ready: { ...type.caption, color: colors.textTertiary, lineHeight: 17 },
   pressed: { opacity: 0.86, transform: [{ scale: 0.99 }] },
 });

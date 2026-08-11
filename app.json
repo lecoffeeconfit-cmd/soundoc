@@ -11,10 +11,7 @@
       "supportsTablet": true,
       "usesIcloudStorage": true,
       "infoPlist": {
-        "UIBackgroundModes": [
-          "audio",
-          "audio"
-        ],
+        "UIBackgroundModes": ["audio"],
         "ITSAppUsesNonExemptEncryption": false
       },
       "bundleIdentifier": "com.lecoffeeconfit.soundoc",

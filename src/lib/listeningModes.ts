@@ -1,5 +1,6 @@
-import type { LibraryItem, ListeningModeId, SmartClassification, SpeechPreferences } from '../types';
-import { GOLDEN_PRESET } from './goldenListening';
+import type { LibraryItem, ListeningModeId, SmartClassification, SpeechPreferences, Voice } from '../types';
+import { getBestGoldenVoice, GOLDEN_PRESET } from './goldenListening';
+import { applyGoldenPersonalization, type GoldenAdaptiveProfile } from './goldenPersonalization';
 
 /** The mode catalog is the single source of truth for values shown in Settings and used by speech. */
 export type ListeningModeProfile = {
@@ -98,6 +99,14 @@ export function resolveSpeechPreferences(preferences: SpeechPreferences, item?: 
     ? { skipSiteBoilerplate: false, skipNavigationAndAds: false, skipSharingControls: false, skipRelatedStories: false, skipDatabaseIdentifiers: false, skipUrls: false, skipCitations: false, skipHeadings: false, skipConsecutiveDuplicates: false, skipLongNumbersAndCodes: false, skipReferenceSection: false }
     : { ...resolved.readingRules, skipSiteBoilerplate: true, skipUrls: true, skipCitations: true, skipLongNumbersAndCodes: true, skipReferenceSection: true };
   return { ...preferences, modeId: id, smartClassification: golden ? classifyDocument(item) : preferences.smartClassification, rate: resolved.rate, pitch: resolved.pitch, volume: resolved.volume, sentencePauseMs: podcastPacing.sentencePauseMs ?? resolved.sentencePauseMs, paragraphPauseMs: podcastPacing.paragraphPauseMs ?? resolved.paragraphPauseMs, headingPauseMs: podcastPacing.headingPauseMs ?? resolved.headingPauseMs, ...filtering, recommendedListening: golden, podcastModeEnabled: golden ? false : preferences.podcastModeEnabled, adaptiveListeningEnabled: golden ? false : preferences.adaptiveListeningEnabled };
+}
+
+/** Resolves the values that the current speech session will use, including Golden's installed voice. */
+export function resolveRuntimeSpeechPreferences(preferences: SpeechPreferences, item: LibraryItem | null | undefined, voices: readonly Voice[], profile?: GoldenAdaptiveProfile | null): SpeechPreferences {
+  const resolved = resolveSpeechPreferences(preferences, item);
+  if (!resolved.recommendedListening) return resolved;
+  const voice = getBestGoldenVoice(voices, item?.language ?? resolved.voiceLocale ?? 'en-US', preferences.voiceIdentifier ?? item?.selectedVoice);
+  return applyGoldenPersonalization({ ...resolved, voiceIdentifier: voice?.identifier }, profile, voices, item?.language ?? resolved.voiceLocale ?? 'en-US');
 }
 
 export function modeSummary(preferences: SpeechPreferences, item?: LibraryItem | null) {
