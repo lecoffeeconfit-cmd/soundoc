@@ -24,6 +24,7 @@ type SubscriptionContextValue = {
   consumeFreeListening: (elapsedSeconds: number) => Pick<FreeListeningUpdate, 'remainingSeconds' | 'reachedLimit' | 'crossedLowAllowance'>;
   refreshFreeListeningUsage: () => void;
   trialExpirationDate: string | null;
+  trialStartDate: string | null;
   trialDaysRemaining: number | null;
   subscriptionExpirationDate: string | null;
   activeProductIdentifier: string | null;
@@ -87,6 +88,17 @@ export function SubscriptionProvider({ children }: PropsWithChildren) {
   const expiredTrialRefresh = useRef<string | null>(null);
   const freeUsageRef = useRef<FreeListeningUsage | null>(null);
   const freeUsageWrite = useRef<Promise<void>>(Promise.resolve());
+  const activeEntitlement = customerInfo?.entitlements.active[REVENUECAT_ENTITLEMENT_ID] ?? null;
+  const isPro = activeEntitlement?.isActive === true;
+  const isTrialing = isPro && activeEntitlement?.periodType === 'TRIAL';
+  const subscriptionExpirationDate = activeEntitlement?.expirationDate ?? null;
+  const trialExpirationDate = isTrialing ? subscriptionExpirationDate : null;
+  const trialStartDate = isTrialing ? activeEntitlement?.originalPurchaseDate ?? null : null;
+  const monthlyPackage = findPackage(currentOffering, REVENUECAT_MONTHLY_PACKAGE_ID);
+  const annualPackage = findPackage(currentOffering, REVENUECAT_ANNUAL_PACKAGE_ID);
+  // Free usage does not exist during Pro or its trial. It begins only after the entitlement ends.
+  const isFree = isInitialized && !isPro && !isTrialing && (hasResolvedEntitlement || !configured.current);
+  const isPlaybackAccessReady = !isFree || freeUsageRef.current !== null;
 
   const applyCustomerInfo = useCallback((info: CustomerInfo) => {
     setCustomerInfo(info);
@@ -108,6 +120,11 @@ export function SubscriptionProvider({ children }: PropsWithChildren) {
   }, [persistFreeUsage]);
 
   useEffect(() => {
+    if (!isFree) {
+      freeUsageRef.current = null;
+      setFreeUsage(null);
+      return;
+    }
     let mounted = true;
     void AsyncStorage.getItem(FREE_LISTENING_STORAGE_KEY).then((stored) => {
       let next = createFreeListeningUsage();
@@ -125,7 +142,7 @@ export function SubscriptionProvider({ children }: PropsWithChildren) {
       if (mounted) setCurrentFreeUsage(createFreeListeningUsage());
     });
     return () => { mounted = false; };
-  }, [setCurrentFreeUsage]);
+  }, [isFree, setCurrentFreeUsage]);
 
   const loadOffering = useCallback(async () => {
     const offerings = await Purchases.getOfferings();
@@ -185,24 +202,14 @@ export function SubscriptionProvider({ children }: PropsWithChildren) {
     return () => subscription.remove();
   }, [refreshCustomerInfo]);
 
-  const activeEntitlement = customerInfo?.entitlements.active[REVENUECAT_ENTITLEMENT_ID] ?? null;
-  const isPro = activeEntitlement?.isActive === true;
-  const isTrialing = isPro && activeEntitlement?.periodType === 'TRIAL';
-  const subscriptionExpirationDate = activeEntitlement?.expirationDate ?? null;
-  const trialExpirationDate = isTrialing ? subscriptionExpirationDate : null;
-  const monthlyPackage = findPackage(currentOffering, REVENUECAT_MONTHLY_PACKAGE_ID);
-  const annualPackage = findPackage(currentOffering, REVENUECAT_ANNUAL_PACKAGE_ID);
-  // A failed store refresh must not immediately downgrade a cached Premium listener.
-  const isFree = isInitialized && !isPro && (hasResolvedEntitlement || !configured.current);
-  const isPlaybackAccessReady = !isFree || freeUsageRef.current !== null;
-
   const refreshFreeListeningUsage = useCallback(() => {
+    if (!isFree) return;
     const normalized = normalizeFreeListeningUsage(freeUsageRef.current);
     const current = freeUsageRef.current;
     if (!current || current.periodStart !== normalized.usage.periodStart || current.usedSeconds !== normalized.usage.usedSeconds || current.lowAllowanceNoticeShown !== normalized.usage.lowAllowanceNoticeShown) {
       setCurrentFreeUsage(normalized.usage);
     }
-  }, [setCurrentFreeUsage]);
+  }, [isFree, setCurrentFreeUsage]);
 
   const canStartPlayback = useCallback(() => {
     if (!isFree) return true;
@@ -250,7 +257,10 @@ export function SubscriptionProvider({ children }: PropsWithChildren) {
       return;
     }
     const untilNextDisplayChange = remaining - (days - 1) * DAY_MS;
-    const timer = setTimeout(() => setTrialClock(Date.now()), Math.max(1_000, untilNextDisplayChange + 50));
+    // Day-level status stays quiet; under 24 hours the card refreshes hourly for a useful
+    // hour-based label without creating a second-by-second countdown.
+    const refreshCadence = remaining <= DAY_MS ? Math.min(DAY_MS / 24, remaining + 50) : untilNextDisplayChange + 50;
+    const timer = setTimeout(() => setTrialClock(Date.now()), Math.max(1_000, refreshCadence));
     return () => clearTimeout(timer);
   }, [refreshCustomerInfo, trialClock, trialExpirationDate]);
 
@@ -359,7 +369,7 @@ export function SubscriptionProvider({ children }: PropsWithChildren) {
     freeResetDate: isFree ? localWeekResetDate() : null,
     freeResetLabel: isFree ? freeListeningResetLabel() : null,
     canStartPlayback, consumeFreeListening, refreshFreeListeningUsage,
-    trialExpirationDate, trialDaysRemaining: isTrialing ? futureDaysRemaining(trialExpirationDate, trialClock) : null,
+    trialExpirationDate, trialStartDate, trialDaysRemaining: isTrialing ? futureDaysRemaining(trialExpirationDate, trialClock) : null,
     subscriptionExpirationDate, activeProductIdentifier: activeEntitlement?.productIdentifier ?? null,
     willRenew: activeEntitlement?.willRenew ?? null,
     isCancellationPending: isPro && (activeEntitlement?.willRenew === false || Boolean(activeEntitlement?.unsubscribeDetectedAt)),
@@ -367,7 +377,7 @@ export function SubscriptionProvider({ children }: PropsWithChildren) {
     currentOffering, monthlyPackage, annualPackage, trialEligibility, error, notice, isPaywallVisible,
     refreshCustomerInfo, purchaseMonthly: () => purchase(monthlyPackage), purchaseAnnual: () => purchase(annualPackage), restorePurchases,
     openSubscriptionManagement, openPaywall, closePaywall, requirePro, clearNotice,
-  }), [activeEntitlement, annualPackage, canStartPlayback, clearNotice, closePaywall, consumeFreeListening, currentOffering, customerInfo?.managementURL, error, freeUsage, isFree, isInitialized, isLoading, isPaywallVisible, isPlaybackAccessReady, isPro, isPurchasing, isTrialing, monthlyPackage, notice, openPaywall, openSubscriptionManagement, purchase, refreshCustomerInfo, refreshFreeListeningUsage, requirePro, restorePurchases, subscriptionExpirationDate, trialClock, trialEligibility, trialExpirationDate]);
+  }), [activeEntitlement, annualPackage, canStartPlayback, clearNotice, closePaywall, consumeFreeListening, currentOffering, customerInfo?.managementURL, error, freeUsage, isFree, isInitialized, isLoading, isPaywallVisible, isPlaybackAccessReady, isPro, isPurchasing, isTrialing, monthlyPackage, notice, openPaywall, openSubscriptionManagement, purchase, refreshCustomerInfo, refreshFreeListeningUsage, requirePro, restorePurchases, subscriptionExpirationDate, trialClock, trialEligibility, trialExpirationDate, trialStartDate]);
 
   return <SubscriptionContext.Provider value={value}>{children}</SubscriptionContext.Provider>;
 }

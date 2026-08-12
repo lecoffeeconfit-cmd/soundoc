@@ -120,13 +120,15 @@ export function segmentSentences(text: string, language = 'en-US'): string[] {
 export function safePublicUrl(value: string): URL | undefined {
   try {
     const url = new URL(value.trim());
-    const host = url.hostname.toLowerCase();
+    // Normalize DNS trailing dots and reject alternate numeric IP spellings.
+    const host = url.hostname.toLowerCase().replace(/\.$/, '');
     const octets = host.split('.').map((part) => Number(part));
     const isIpv4 = octets.length === 4 && octets.every((part) => Number.isInteger(part) && part >= 0 && part <= 255);
     const first = octets[0] ?? -1;
     const second = octets[1] ?? -1;
-    const privateIpv4 = isIpv4 && (first === 0 || first === 10 || first === 127 || first === 169 && second === 254 || first === 192 && second === 0 || first === 192 && second === 168 || first === 198 && (second === 18 || second === 19) || first === 198 && second === 51 || first === 203 && second === 0 || first >= 224 || first === 172 && second >= 16 && second <= 31);
-    const privateHost = host === 'localhost' || host.endsWith('.local') || host.endsWith('.localhost') || host.endsWith('.internal') || host.endsWith('.intranet') || host.endsWith('.home.arpa') || privateIpv4 || host.includes(':');
+    const privateIpv4 = isIpv4 && (first === 0 || first === 10 || first === 100 && second >= 64 && second <= 127 || first === 127 || first === 169 && second === 254 || first === 192 && second === 0 || first === 192 && second === 168 || first === 198 && (second === 18 || second === 19) || first === 198 && second === 51 || first === 203 && second === 0 || first >= 224 || first === 172 && second >= 16 && second <= 31);
+    const alternateNumericHost = /^(?:\d+|0x[\da-f]+|[\da-f]+(?:\.[\da-f]+){1,3})$/i.test(host);
+    const privateHost = host === 'localhost' || host === 'local' || host === 'internal' || host === 'intranet' || host.endsWith('.local') || host.endsWith('.localhost') || host.endsWith('.internal') || host.endsWith('.intranet') || host.endsWith('.home.arpa') || privateIpv4 || alternateNumericHost || host.includes(':');
     return (url.protocol === 'https:' || url.protocol === 'http:') && !url.username && !url.password && !privateHost ? url : undefined;
   } catch { return undefined; }
 }

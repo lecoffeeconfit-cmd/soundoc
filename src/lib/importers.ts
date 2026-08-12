@@ -4,11 +4,17 @@ import { cleanText, htmlToText, removeArticleReferenceNoise } from './text';
 import { sectionsFromText } from './documents';
 import type { SoundocSection, SoundocSourceType } from '../types';
 
-const MAX_FILE_BYTES = 25 * 1024 * 1024;
-const MAX_UNPACKED_BYTES = 60 * 1024 * 1024;
+/** Internal extractor guardrail: the import UI deliberately does not advertise a small file cap. */
+export const MAX_EXTRACTABLE_DOCUMENT_BYTES = 75 * 1024 * 1024;
+const MAX_UNPACKED_BYTES = 180 * 1024 * 1024;
+const MAX_ARCHIVE_ENTRIES = 10_000;
 
 export type ImportedDocument = { text: string; title?: string; format: string; sourceUrl?: string; sourceType?: SoundocSourceType; originalText?: string; sections?: SoundocSection[]; author?: string; extractionMethod?: string; extractionConfidence?: number; extractionWarnings?: string[]; pageCount?: number };
 export type ArticleExtraction = ImportedDocument & { sourceDomain: string; authors: string[]; abstract?: string; confidence: number; suspicious: boolean; warnings: string[]; method: 'json-ld' | 'semantic' | 'readability' | 'fallback' };
+
+export class DocumentImportError extends Error {
+  constructor(message: string, readonly pageCount?: number) { super(message); this.name = 'DocumentImportError'; }
+}
 
 function enrichImportedDocument(document: ImportedDocument, sourceType: SoundocSourceType, extractionMethod: string, originalText?: string): ImportedDocument {
   return { ...document, sourceType, sections: document.sections ?? sectionsFromText(document.text, document.title), extractionMethod, extractionConfidence: document.extractionConfidence ?? 1, extractionWarnings: document.extractionWarnings ?? [], ...(originalText === undefined ? {} : { originalText }) };
@@ -38,10 +44,58 @@ function pathFrom(base: string, relative: string) {
   return normalized.join('/');
 }
 
+function readU16(bytes: Uint8Array, offset: number) {
+  return bytes[offset] | (bytes[offset + 1] << 8);
+}
+
+function readU32(bytes: Uint8Array, offset: number) {
+  return (bytes[offset] | (bytes[offset + 1] << 8) | (bytes[offset + 2] << 16) | (bytes[offset + 3] << 24)) >>> 0;
+}
+
+function unsafeArchivePath(value: string) {
+  const normalized = value.replace(/\\/g, '/');
+  return normalized.startsWith('/') || /^[a-z]:/i.test(normalized) || normalized.split('/').some((part) => part === '..');
+}
+
+/** Validate ZIP metadata before fflate allocates decompressed entries. */
+function preflightZip(bytes: Uint8Array) {
+  const minimumEndOffset = Math.max(0, bytes.length - 65_557);
+  let endOffset = -1;
+  for (let offset = bytes.length - 22; offset >= minimumEndOffset; offset -= 1) {
+    if (readU32(bytes, offset) === 0x06054b50) { endOffset = offset; break; }
+  }
+  if (endOffset < 0 || endOffset + 22 > bytes.length) throw new DocumentImportError('Soundoc could not safely process this document.');
+  const entries = readU16(bytes, endOffset + 10);
+  const centralDirectorySize = readU32(bytes, endOffset + 12);
+  const centralDirectoryOffset = readU32(bytes, endOffset + 16);
+  if (entries === 0xffff || centralDirectorySize === 0xffffffff || centralDirectoryOffset === 0xffffffff || entries > MAX_ARCHIVE_ENTRIES) throw new DocumentImportError('Soundoc could not safely process this document.');
+  const directoryEnd = centralDirectoryOffset + centralDirectorySize;
+  if (centralDirectoryOffset > bytes.length || directoryEnd > bytes.length) throw new DocumentImportError('Soundoc could not safely process this document.');
+  let offset = centralDirectoryOffset;
+  let totalUnpackedBytes = 0;
+  for (let index = 0; index < entries; index += 1) {
+    if (offset + 46 > directoryEnd || readU32(bytes, offset) !== 0x02014b50) throw new DocumentImportError('Soundoc could not safely process this document.');
+    const flags = readU16(bytes, offset + 8);
+    const unpackedBytes = readU32(bytes, offset + 24);
+    const nameLength = readU16(bytes, offset + 28);
+    const extraLength = readU16(bytes, offset + 30);
+    const commentLength = readU16(bytes, offset + 32);
+    const localHeaderOffset = readU32(bytes, offset + 42);
+    const recordLength = 46 + nameLength + extraLength + commentLength;
+    if (offset + recordLength > directoryEnd || (flags & 1) !== 0 || unpackedBytes === 0xffffffff || totalUnpackedBytes > MAX_UNPACKED_BYTES - unpackedBytes) throw new DocumentImportError('Soundoc could not safely process this document.');
+    const name = strFromU8(bytes.subarray(offset + 46, offset + 46 + nameLength));
+    if (unsafeArchivePath(name) || localHeaderOffset + 4 > bytes.length || readU32(bytes, localHeaderOffset) !== 0x04034b50) throw new DocumentImportError('Soundoc could not safely process this document.');
+    totalUnpackedBytes += unpackedBytes;
+    offset += recordLength;
+  }
+  if (offset !== directoryEnd) throw new DocumentImportError('Soundoc could not safely process this document.');
+}
+
 function readZip(bytes: Uint8Array) {
+  preflightZip(bytes);
   const entries = unzipSync(bytes);
   const total = Object.values(entries).reduce((size, entry) => size + entry.length, 0);
-  if (total > MAX_UNPACKED_BYTES) throw new Error('This document expands to an unsafe size.');
+  if (Object.keys(entries).length > MAX_ARCHIVE_ENTRIES || total > MAX_UNPACKED_BYTES) throw new DocumentImportError('Soundoc could not safely process this document.');
   return entries;
 }
 
@@ -67,9 +121,18 @@ function extractEpub(bytes: Uint8Array): ImportedDocument {
   for (const match of opf.matchAll(/<item\b[^>]*\bid=["']([^"']+)["'][^>]*\bhref=["']([^"']+)["'][^>]*>/gi)) manifest.set(match[1], match[2]);
   const spine = Array.from(opf.matchAll(/<itemref\b[^>]*\bidref=["']([^"']+)["'][^>]*>/gi)).map((match) => match[1]);
   const files = spine.map((id) => manifest.get(id)).filter((href): href is string => Boolean(href));
-  const chapters = files.map((href) => entries[pathFrom(root, href)]).filter(Boolean).map((entry) => htmlToText(strFromU8(entry)));
+  const chapters: SoundocSection[] = [];
+  files.forEach((href, index) => {
+    const source = entries[pathFrom(root, href)];
+    const raw = source ? strFromU8(source) : '';
+    const text = htmlToText(raw);
+    const heading = raw.match(/<h[1-3][^>]*>([\s\S]*?)<\/h[1-3]>/i)?.[1];
+    const chapterTitle = heading ? htmlToText(heading).split('\n')[0] : `Chapter ${index + 1}`;
+    const body = cleanText(text);
+    if (body) chapters.push({ id: `epub-chapter-${index + 1}`, title: chapterTitle, text: `${chapterTitle}\n\n${body}`, order: index });
+  });
   if (!chapters.length) throw new Error('This EPUB has no readable chapters.');
-  return { text: cleanText(chapters.join('\n\n')), title: title ? decodeEntities(title.trim()) : undefined, format: 'EPUB' };
+  return { text: cleanText(chapters.map((chapter) => chapter.text).join('\n\n')), title: title ? decodeEntities(title.trim()) : undefined, format: 'EPUB', sections: chapters };
 }
 
 function decodePdfString(value: string) {
@@ -84,10 +147,17 @@ function pdfOperators(source: string) {
   return chunks.join(' ');
 }
 
+function hasPdfHeader(bytes: Uint8Array) {
+  const header = String.fromCharCode(...bytes.subarray(0, Math.min(bytes.length, 1024)));
+  return header.indexOf('%PDF-') >= 0;
+}
+
 function extractPdf(bytes: Uint8Array): ImportedDocument {
   // Extract standard text operators, including common Flate-compressed content streams.
   // PDFs with custom character maps, passwords, or image-only pages deliberately fail safely.
+  if (!hasPdfHeader(bytes)) throw new DocumentImportError('This file does not look like a readable PDF.');
   const raw = Array.from(bytes, (byte) => String.fromCharCode(byte)).join('');
+  const pageCount = Math.max(1, (raw.match(/\/Type\s*\/Page\b/g) ?? []).length);
   if (/\/Encrypt\b/.test(raw)) throw new Error('This PDF is password protected.');
   const candidates = [raw];
   for (const match of raw.matchAll(/\/FlateDecode[\s\S]{0,800}?stream\r?\n([\s\S]*?)\r?\nendstream/g)) {
@@ -96,12 +166,12 @@ function extractPdf(bytes: Uint8Array): ImportedDocument {
     } catch { /* this stream may use an unsupported PDF filter */ }
   }
   const text = cleanText(candidates.map(pdfOperators).join('\n'));
-  if (text.length < 20) throw new Error('This PDF appears to contain scanned images or unsupported text encoding.');
-  const pageCount = Math.max(1, (raw.match(/\/Type\s*\/Page\b/g) ?? []).length);
+  if (text.length < 20) throw new DocumentImportError('This PDF appears to contain scanned images or unsupported text encoding.', pageCount);
   return { text, format: 'PDF', pageCount };
 }
 
 function extractRtf(source: string): ImportedDocument {
+  if (!/^\s*(?:\uFEFF)?\{\\rtf\d/i.test(source)) throw new DocumentImportError('This file does not look like readable RTF text.');
   const text = cleanText(source
     .replace(/\\par[d]?\b/g, '\n\n').replace(/\\line\b/g, '\n').replace(/\\tab\b/g, '\t')
     .replace(/\\'[0-9a-f]{2}/gi, ' ').replace(/\\u-?\d+\??/gi, ' ')
@@ -111,15 +181,15 @@ function extractRtf(source: string): ImportedDocument {
 }
 
 export async function importDocument(uri: string, name: string, size?: number): Promise<ImportedDocument> {
-  if (size && size > MAX_FILE_BYTES) throw new Error('This file is larger than 25 MB.');
+  if (size && size > MAX_EXTRACTABLE_DOCUMENT_BYTES) throw new Error('This file is too large to read safely on this device.');
   const extension = name.split('.').pop()?.toLowerCase() ?? '';
   const file = new File(uri);
-  const bytes = await file.bytes();
-  if (bytes.length > MAX_FILE_BYTES) throw new Error('This file is larger than 25 MB.');
   if (extension === 'txt') { const originalText = await file.text(); return enrichImportedDocument({ text: cleanText(originalText), format: 'Text file', originalText }, 'text', 'plain-text', originalText); }
   if (extension === 'md' || extension === 'markdown') { const originalText = await file.text(); return enrichImportedDocument({ text: cleanText(originalText.replace(/^#{1,6}\s+/gm, '').replace(/[*_`>#]/g, '')), format: 'Markdown', originalText }, 'text', 'markdown', originalText); }
   if (extension === 'html' || extension === 'htm') { const originalText = await file.text(); const extraction = extractArticleFromHtml(originalText, 'https://soundoc.local/import.html'); return enrichImportedDocument({ text: extraction.text, title: extraction.title, format: 'HTML', sections: extraction.sections, extractionConfidence: extraction.confidence, extractionWarnings: extraction.warnings, originalText }, 'html', `html-${extraction.method}`, originalText); }
   if (extension === 'rtf') { const originalText = await file.text(); return enrichImportedDocument({ ...extractRtf(originalText), originalText }, 'text', 'rtf', originalText); }
+  const bytes = await file.bytes();
+  if (bytes.length > MAX_EXTRACTABLE_DOCUMENT_BYTES) throw new Error('This file is too large to read safely on this device.');
   if (extension === 'docx') return enrichImportedDocument(extractDocx(bytes), 'docx', 'docx-xml');
   if (extension === 'epub') return enrichImportedDocument(extractEpub(bytes), 'epub', 'epub-spine');
   if (extension === 'pdf') return enrichImportedDocument(extractPdf(bytes), 'pdf', 'pdf-text');

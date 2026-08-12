@@ -255,6 +255,9 @@ export function useSpeechPlayer(onProgress: (item: LibraryItem) => void, prefere
     const session = speechSession.current;
     if (active.current && speechActive.current && (Platform.OS === 'ios' || Platform.OS === 'web')) {
       nativePausedSession.current = session;
+      // Native pause does not necessarily fire onStopped. Stop the Free meter
+      // explicitly so wall-clock time is never charged while speech is paused.
+      stopFreePlaybackMeter();
       setState('paused');
       void Speech.pause().catch(() => {
         if (nativePausedSession.current !== session || speechSession.current !== session) return;
@@ -266,7 +269,7 @@ export function useSpeechPlayer(onProgress: (item: LibraryItem) => void, prefere
       nativePausedSession.current = null;
     }
     if (active.current) commit({ ...active.current, sentenceIndex: chunkIndex.current, updatedAt: Date.now() }, 'paused');
-  }, [cancelSpeech, clearTimer, commit]);
+  }, [cancelSpeech, clearTimer, commit, stopFreePlaybackMeter]);
   const jump = useCallback((delta: number) => { if (!canStartFreePlayback()) return; const session = cancelSpeech(); speak(Math.max(0, chunkIndex.current + delta), session); }, [canStartFreePlayback, cancelSpeech, speak]);
   const jumpToChunk = useCallback((sequence: number) => {
     const current = active.current; if (!current || current.storageMode !== 'chunked') return;
@@ -301,6 +304,16 @@ export function useSpeechPlayer(onProgress: (item: LibraryItem) => void, prefere
 
   const stopPreview = useCallback(() => { const preview = previewSession.current; if (!preview) return; previewSession.current = null; const session = cancelSpeech(); if (preview.wasPlaying) timer.current = setTimeout(() => speak(preview.resumeIndex, session), 50); }, [cancelSpeech, speak]);
 
+  const clear = useCallback(() => {
+    previewSession.current = null;
+    cancelSpeech();
+    active.current = null;
+    chunkIndex.current = 0;
+    largeChunkCache.current.clear();
+    setItem(null);
+    setState('idle');
+  }, [cancelSpeech]);
+
   const playText = useCallback((text: string, language = active.current?.language ?? 'en-US') => {
     if (!canStartFreePlayback()) return;
     const wasPlaying = state === 'playing'; const resumeIndex = chunkIndex.current; const current = active.current; const effective = resolveRuntimeSpeechPreferences(preferencesRef.current, current, voices, goldenProfileRef.current); const chunks = processSpeechText(text, effective, language); let index = 0; const session = cancelSpeech();
@@ -326,5 +339,5 @@ export function useSpeechPlayer(onProgress: (item: LibraryItem) => void, prefere
 
   const sentences = useMemo(() => item ? processSpeechText(speechSourceFor(item), resolveRuntimeSpeechPreferences(preferences, item, voices, goldenProfile), item.language).map((chunk) => chunk.text) : [], [item, preferences, voices, goldenProfile, speechSourceFor]);
   const chapterTitle = item?.storageMode === 'chunked' ? persistedChunkFor(item)?.sectionTitle : undefined;
-  return { item, state, voices, load, play, pause, jump, jumpToChunk, updateSettings, preview, stopPreview, playText, playConversation, sentences, chapterTitle };
+  return { item, state, voices, load, clear, play, pause, jump, jumpToChunk, updateSettings, preview, stopPreview, playText, playConversation, sentences, chapterTitle };
 }

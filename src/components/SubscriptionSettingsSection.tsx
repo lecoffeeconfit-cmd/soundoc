@@ -2,6 +2,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSubscription } from '../hooks/useSubscription';
 import { formatFreeListeningRemaining } from '../lib/freeListening';
 import { colors, radius, space, type } from '../lib/theme';
+import { formatTrialEndDate, formatTrialRemaining } from '../lib/trialPresentation';
 
 function formatDate(value: string | null) {
   if (!value) return null;
@@ -14,12 +15,12 @@ export function SubscriptionSettingsSection() {
   const expiration = formatDate(subscription.subscriptionExpirationDate);
   const plan = subscription.activeProductIdentifier === subscription.annualPackage?.product.identifier ? 'Annual' : subscription.activeProductIdentifier === subscription.monthlyPackage?.product.identifier ? 'Monthly' : null;
   const detail = !subscription.isInitialized ? 'Checking your subscription…'
-    : subscription.isTrialing ? `${subscription.trialDaysRemaining === 1 ? '1 day remaining' : `${subscription.trialDaysRemaining ?? 0} days remaining`}${expiration ? ` · Ends ${expiration}` : ''}`
+    : subscription.isTrialing ? `${formatTrialRemaining(subscription.trialExpirationDate, subscription.trialDaysRemaining)}${formatTrialEndDate(subscription.trialExpirationDate) ? ` · Ends ${formatTrialEndDate(subscription.trialExpirationDate)}` : ''}`
     : subscription.isPro && subscription.isCancellationPending ? `Active until ${expiration ?? 'the end of this period'}`
     : subscription.isPro ? `${plan ? `${plan} · ` : ''}${subscription.willRenew && expiration ? `Renews ${expiration}` : 'Active'}`
     : subscription.isFree ? `${formatFreeListeningRemaining(subscription.freeListeningSecondsRemaining)} this week · ${subscription.freeResetLabel ?? 'Resets Monday'}`
       : 'Unlock all Soundoc Pro features';
-  const status = subscription.isTrialing ? 'Free trial' : subscription.isPro ? 'Active' : subscription.isFree ? 'Soundoc Free' : 'Soundoc Pro';
+  const status = subscription.isTrialing ? 'Premium Trial' : subscription.isPro ? 'Active' : subscription.isFree ? 'Soundoc Free' : 'Soundoc Pro';
 
   return <View style={styles.section}>
     <Text style={styles.sectionTitle}>Subscription</Text>
