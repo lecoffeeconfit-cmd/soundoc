@@ -276,6 +276,27 @@ export function useSpeechPlayer(onProgress: (item: LibraryItem) => void, prefere
     const session = cancelSpeech(); const next = { ...current, currentChunkIndex: Math.max(0, sequence), sentenceIndex: 0, currentParagraphIndex: 0, currentCharacterOffset: 0, updatedAt: Date.now() };
     active.current = next; chunkIndex.current = 0; setItem(next); speak(0, session);
   }, [cancelSpeech, speak]);
+  /** Shared final seek path for the player navigation controls. It accepts a normalized
+   * document position, resolves it to an existing sentence/chunk boundary, and restarts
+   * speech once using the same playback path as the established jump controls. */
+  const seekToNormalizedPosition = useCallback((normalizedPosition: number) => {
+    const current = active.current;
+    if (!current || !canStartFreePlayback()) return;
+    const position = Math.max(0, Math.min(1, normalizedPosition));
+    if (current.storageMode === 'chunked') {
+      const availableChunkCount = getDocumentChunkCount(current.id);
+      if (!availableChunkCount) return;
+      const targetSequence = Math.max(0, Math.min(availableChunkCount - 1, Math.round(position * Math.max(0, availableChunkCount - 1))));
+      const session = cancelSpeech();
+      const next = { ...current, currentChunkIndex: targetSequence, sentenceIndex: 0, currentParagraphIndex: 0, currentCharacterOffset: 0, updatedAt: Date.now() };
+      active.current = next; chunkIndex.current = 0; setItem(next); speak(0, session);
+      return;
+    }
+    const chunks = processSpeechText(speechSourceFor(current), resolveRuntimeSpeechPreferences(preferencesRef.current, current, voices, goldenProfileRef.current), current.language);
+    const targetIndex = Math.max(0, Math.min(Math.max(0, chunks.length - 1), Math.round(position * Math.max(0, chunks.length - 1))));
+    const session = cancelSpeech();
+    speak(targetIndex, session);
+  }, [canStartFreePlayback, cancelSpeech, speak, speechSourceFor, voices]);
   const updateSettings = useCallback((settings: Partial<SpeechPreferences>) => {
     if (!active.current) return;
     if (settings.voiceIdentifier) unavailableVoiceIds.current.delete(settings.voiceIdentifier);
@@ -339,5 +360,5 @@ export function useSpeechPlayer(onProgress: (item: LibraryItem) => void, prefere
 
   const sentences = useMemo(() => item ? processSpeechText(speechSourceFor(item), resolveRuntimeSpeechPreferences(preferences, item, voices, goldenProfile), item.language).map((chunk) => chunk.text) : [], [item, preferences, voices, goldenProfile, speechSourceFor]);
   const chapterTitle = item?.storageMode === 'chunked' ? persistedChunkFor(item)?.sectionTitle : undefined;
-  return { item, state, voices, load, clear, play, pause, jump, jumpToChunk, updateSettings, preview, stopPreview, playText, playConversation, sentences, chapterTitle };
+  return { item, state, voices, load, clear, play, pause, jump, jumpToChunk, seekToNormalizedPosition, updateSettings, preview, stopPreview, playText, playConversation, sentences, chapterTitle };
 }

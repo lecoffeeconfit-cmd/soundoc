@@ -12,7 +12,8 @@
       "usesIcloudStorage": true,
       "infoPlist": {
         "UIBackgroundModes": ["audio"],
-        "ITSAppUsesNonExemptEncryption": false
+        "ITSAppUsesNonExemptEncryption": false,
+        "UIStatusBarStyle": "UIStatusBarStyleLightContent"
       },
       "bundleIdentifier": "com.lecoffeeconfit.soundoc",
       "buildNumber": "4"
@@ -38,7 +39,11 @@
           "backgroundColor": "#111417",
           "image": "./assets/icon.png",
           "imageWidth": 180,
-          "resizeMode": "contain"
+          "resizeMode": "contain",
+          "dark": {
+            "backgroundColor": "#111417",
+            "image": "./assets/icon.png"
+          }
         }
       ],
       "expo-mail-composer"
