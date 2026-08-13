@@ -11,12 +11,14 @@
       "supportsTablet": true,
       "usesIcloudStorage": true,
       "infoPlist": {
-        "UIBackgroundModes": ["audio"],
+        "UIBackgroundModes": [
+          "audio"
+        ],
         "ITSAppUsesNonExemptEncryption": false,
         "UIStatusBarStyle": "UIStatusBarStyleLightContent"
       },
       "bundleIdentifier": "com.lecoffeeconfit.soundoc",
-      "buildNumber": "4"
+      "buildNumber": "5"
     },
     "plugins": [
       [

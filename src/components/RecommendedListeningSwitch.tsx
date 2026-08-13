@@ -8,11 +8,10 @@ type Props = {
   reduceEffects?: boolean;
   onValueChange: (value: boolean) => void;
   onOpenInspector?: () => void;
-  feedbackAttached?: boolean;
 };
 
 /** The one special control in Settings: a compact, gold, tactile recommendation switch. */
-export function RecommendedListeningSwitch({ enabled, classification, reduceEffects = false, onValueChange, onOpenInspector, feedbackAttached = false }: Props) {
+export function RecommendedListeningSwitch({ enabled, classification, reduceEffects = false, onValueChange, onOpenInspector }: Props) {
   const slide = useRef(new Animated.Value(enabled ? 1 : 0)).current;
 
   useEffect(() => {
@@ -28,10 +27,10 @@ export function RecommendedListeningSwitch({ enabled, classification, reduceEffe
     onValueChange(!enabled);
   };
 
-  return <Pressable onPress={toggle} accessibilityRole="switch" accessibilityState={{ checked: enabled }} accessibilityLabel="Golden, Recommended" accessibilityHint="Optimizes the installed voice, speech settings, and natural pacing" style={({ pressed }) => [styles.card, enabled && styles.cardEnabled, feedbackAttached && styles.cardWithFeedback, pressed && styles.pressed]}>
+  return <Pressable onPress={toggle} accessibilityRole="switch" accessibilityState={{ checked: enabled }} accessibilityLabel="Golden Switch, Recommended" accessibilityHint="Optimizes the installed voice, speech settings, and natural pacing" style={({ pressed }) => [styles.card, enabled && styles.cardEnabled, pressed && styles.pressed]}>
     <View style={[styles.iconWell, enabled && styles.iconWellEnabled]}><Text style={[styles.icon, enabled && styles.iconEnabled]}>✦</Text></View>
     <View style={styles.copy}>
-      <View style={styles.titleRow}><Text style={styles.title}>Golden</Text><View style={styles.badge}><Text style={styles.badgeText}>RECOMMENDED</Text></View>{onOpenInspector && <Pressable onPress={(event) => { event.stopPropagation(); onOpenInspector(); }} hitSlop={8} style={styles.infoButton} accessibilityRole="button" accessibilityLabel="Open Golden Settings" accessibilityHint="Shows the settings Golden is currently using"><Text style={styles.infoText}>ⓘ</Text></Pressable>}</View>
+      <View style={styles.titleRow}><Text style={styles.title}>Golden Switch</Text>{onOpenInspector && <Pressable onPress={(event) => { event.stopPropagation(); onOpenInspector(); }} hitSlop={8} style={styles.infoButton} accessibilityRole="button" accessibilityLabel="Open Golden Switch Settings" accessibilityHint="Shows the settings Golden Switch is currently using"><Text style={styles.infoText}>ⓘ</Text></Pressable>}</View>
       <Text style={styles.description}>Optimized for clear, natural, podcast-style listening</Text>
       <Text style={[styles.resolved, enabled && styles.resolvedEnabled]}>{enabled ? 'Active · controls voice, tone, volume, and pacing' : 'Off · manual settings are available'}</Text>
     </View>
@@ -39,28 +38,28 @@ export function RecommendedListeningSwitch({ enabled, classification, reduceEffe
       <Text style={[styles.state, enabled && styles.stateEnabled]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>{enabled ? 'ON' : 'OFF'}</Text>
       <View style={[styles.cavity, enabled && styles.cavityEnabled]}><Animated.View style={[styles.block, enabled && styles.blockEnabled, { transform: [{ translateX: slide.interpolate({ inputRange: [0, 1], outputRange: [0, 31] }) }] }]} /></View>
     </View>
+    <View style={styles.badge}><Text style={styles.badgeText}>RECOMMENDED</Text></View>
   </Pressable>;
 }
 
 const styles = StyleSheet.create({
-  card: { minHeight: 112, marginTop: space.lg, padding: space.md, borderRadius: radius.large, backgroundColor: colors.surfaceElevated, borderWidth: 1, borderTopColor: 'rgba(255,255,255,0.12)', borderBottomColor: 'rgba(0,0,0,0.72)', flexDirection: 'row', alignItems: 'center', gap: space.sm, ...shadows.raised },
-  cardWithFeedback: { borderBottomLeftRadius: 0, borderBottomRightRadius: 0 },
-  cardEnabled: { borderColor: colors.recommendedGoldDark, shadowColor: colors.recommendedGold, shadowOpacity: 0.18, shadowRadius: 15 },
+  card: { minHeight: 144, marginTop: space.lg, padding: space.md, borderRadius: radius.large, backgroundColor: colors.surfaceElevated, borderWidth: 1, borderTopColor: 'rgba(255,255,255,0.12)', borderBottomColor: 'rgba(0,0,0,0.72)', flexDirection: 'row', alignItems: 'center', gap: space.sm, ...shadows.raised },
+  cardEnabled: { borderColor: colors.recommendedGoldDark, borderTopColor: colors.recommendedGoldDark, borderBottomColor: colors.recommendedGoldDark, shadowColor: colors.recommendedGold, shadowOpacity: 0.18, shadowRadius: 15 },
   iconWell: { width: 40, height: 40, borderRadius: radius.small, backgroundColor: colors.surfaceInset, borderWidth: 1, borderTopColor: 'rgba(255,255,255,0.08)', borderBottomColor: 'rgba(0,0,0,0.7)', alignItems: 'center', justifyContent: 'center' },
   iconWellEnabled: { backgroundColor: 'rgba(216,180,90,0.14)', borderColor: colors.recommendedGoldDark },
   icon: { color: colors.textTertiary, fontSize: 19 },
   iconEnabled: { color: colors.recommendedGoldBright },
   copy: { flex: 1, minWidth: 0 },
-  titleRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 6 },
+  titleRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   infoButton: { width: 24, height: 24, alignItems: 'center', justifyContent: 'center', marginLeft: 1 },
   infoText: { color: colors.recommendedGoldBright, fontSize: 17, lineHeight: 20 },
   title: { ...type.heading, color: colors.textPrimary },
-  badge: { paddingHorizontal: 6, paddingVertical: 3, borderRadius: radius.pill, backgroundColor: 'rgba(216,180,90,0.14)', borderWidth: 1, borderColor: colors.recommendedGoldDark },
+  badge: { position: 'absolute', top: space.sm, right: space.sm, paddingHorizontal: 6, paddingVertical: 3, borderRadius: radius.pill, backgroundColor: 'rgba(216,180,90,0.14)', borderWidth: 1, borderColor: colors.recommendedGoldDark, zIndex: 1 },
   badgeText: { ...type.caption, color: colors.recommendedGoldBright, fontSize: 9, lineHeight: 12, letterSpacing: 0.7 },
   description: { ...type.caption, color: colors.textSecondary, lineHeight: 18, marginTop: 4 },
   resolved: { ...type.caption, color: colors.textTertiary, marginTop: 5 },
   resolvedEnabled: { color: colors.recommendedGold },
-  switchShell: { minHeight: 58, minWidth: 104, paddingHorizontal: 7, paddingVertical: 8, borderRadius: radius.large, backgroundColor: colors.surfacePrimary, borderWidth: 1, borderTopColor: 'rgba(255,255,255,0.1)', borderBottomColor: 'rgba(0,0,0,0.78)', flexDirection: 'row', alignItems: 'center', gap: 4, flexShrink: 0, shadowColor: '#000', shadowOpacity: 0.3, shadowOffset: { width: 0, height: 5 }, shadowRadius: 8, elevation: 4 },
+  switchShell: { minHeight: 58, minWidth: 104, marginTop: space.sm, paddingHorizontal: 7, paddingVertical: 8, borderRadius: radius.large, backgroundColor: colors.surfacePrimary, borderWidth: 1, borderTopColor: 'rgba(255,255,255,0.1)', borderBottomColor: 'rgba(0,0,0,0.78)', flexDirection: 'row', alignItems: 'center', gap: 4, flexShrink: 0, shadowColor: '#000', shadowOpacity: 0.3, shadowOffset: { width: 0, height: 5 }, shadowRadius: 8, elevation: 4 },
   switchShellEnabled: { borderColor: colors.recommendedGoldDark },
   state: { ...type.caption, color: colors.textTertiary, width: 29, minWidth: 29, fontSize: 11, lineHeight: 14, textAlign: 'center', letterSpacing: 0.3, flexShrink: 0 },
   stateEnabled: { color: colors.recommendedGold },

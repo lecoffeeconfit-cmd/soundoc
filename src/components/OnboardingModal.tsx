@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Animated, Easing, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, radius, space, type } from '../lib/theme';
 
 type GuideKind = 'import' | 'player' | 'studio' | 'library' | 'bookmarks' | 'privacy';
@@ -19,6 +19,7 @@ export function OnboardingModal({ onDone }: { onDone: () => void }) {
   const enter = useRef(new Animated.Value(1)).current;
   const pulse = useRef(new Animated.Value(0)).current;
   const slide = slides[page];
+  const insets = useSafeAreaInsets();
 
   useEffect(() => {
     enter.setValue(0);
@@ -41,8 +42,8 @@ export function OnboardingModal({ onDone }: { onDone: () => void }) {
   const translateY = enter.interpolate({ inputRange: [0, 1], outputRange: [20, 0] });
   const previewScale = pulse.interpolate({ inputRange: [0, 1], outputRange: [0.985, 1.015] });
 
-  return <Modal visible animationType="fade" onRequestClose={onDone} statusBarTranslucent><SafeAreaView style={styles.screen}>
-    <View style={styles.top}><View><Text style={styles.brand}>Soundoc</Text><Text style={styles.brandCaption}>YOUR LISTENING GUIDE</Text></View><Pressable onPress={onDone} accessibilityRole="button" accessibilityLabel="Skip onboarding"><Text style={styles.skip}>Skip</Text></Pressable></View>
+  return <Modal visible animationType="fade" onRequestClose={onDone} statusBarTranslucent><SafeAreaView edges={[]} style={[styles.screen, { paddingTop: insets.top + space.sm, paddingBottom: insets.bottom + space.md }]}>
+    <View style={styles.top}><View><Text style={styles.brand}>Soundoc</Text><Text style={styles.brandCaption}>YOUR LISTENING GUIDE</Text></View><Pressable onPress={onDone} style={({ pressed }) => [styles.skipButton, pressed && styles.pressed]} accessibilityRole="button" accessibilityLabel="Skip onboarding"><Text style={styles.skip}>Skip</Text></Pressable></View>
     <Animated.View style={[styles.content, { opacity: enter, transform: [{ translateY }] }]}>
       <Animated.View style={[styles.previewFrame, { transform: [{ scale: previewScale }] }]}><FeaturePreview kind={slide.kind} pulse={pulse} /></Animated.View>
       <Text style={styles.kicker}>{slide.kicker}</Text>
@@ -65,8 +66,8 @@ function FeaturePreview({ kind, pulse }: { kind: GuideKind; pulse: Animated.Valu
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, overflow: 'hidden', backgroundColor: colors.backgroundPrimary, paddingHorizontal: space.xl, paddingTop: space.md, paddingBottom: space.xxl, justifyContent: 'space-between' },
-  top: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', zIndex: 1 }, brand: { ...type.title, color: colors.textPrimary, letterSpacing: -0.8 }, brandCaption: { ...type.caption, color: colors.textTertiary, letterSpacing: 1.1, marginTop: 1 }, skip: { ...type.label, color: colors.textSecondary, paddingHorizontal: space.xs, paddingVertical: space.sm },
+  screen: { flex: 1, overflow: 'hidden', backgroundColor: colors.backgroundPrimary, paddingHorizontal: space.xl, justifyContent: 'space-between' },
+  top: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', zIndex: 1 }, brand: { ...type.title, color: colors.textPrimary, letterSpacing: -0.8 }, brandCaption: { ...type.caption, color: colors.textTertiary, letterSpacing: 1.1, marginTop: 1 }, skipButton: { minWidth: 64, minHeight: 44, paddingHorizontal: space.sm, borderRadius: radius.pill, backgroundColor: colors.surfaceInset, borderWidth: 1, borderColor: colors.borderSubtle, alignItems: 'center', justifyContent: 'center' }, skip: { ...type.label, color: colors.textSecondary },
   content: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingTop: space.sm },
   previewFrame: { width: '100%', minHeight: 248, borderRadius: radius.xlarge, padding: 1, backgroundColor: 'rgba(255,255,255,0.06)', shadowColor: '#000', shadowOpacity: 0.4, shadowOffset: { width: 0, height: 16 }, shadowRadius: 24, elevation: 10 },
   previewBody: { minHeight: 246, borderRadius: radius.xlarge, padding: space.lg, overflow: 'hidden', backgroundColor: colors.surfacePrimary, borderWidth: 1, borderTopColor: 'rgba(255,255,255,0.08)', borderBottomColor: 'rgba(0,0,0,0.66)', justifyContent: 'center' },
