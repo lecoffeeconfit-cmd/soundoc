@@ -137,7 +137,7 @@ export function useSpeechPlayer(onProgress: (item: LibraryItem) => void, prefere
     return largeChunkCache.current.get(key);
   }, []);
 
-  const speechSourceFor = useCallback((current: LibraryItem) => persistedChunkFor(current)?.text ?? current.speakableText ?? current.text, [persistedChunkFor]);
+  const speechSourceFor = useCallback((current: LibraryItem) => current.speakableText ?? persistedChunkFor(current)?.text ?? current.text, [persistedChunkFor]);
 
   const positionForChunk = useCallback((current: LibraryItem, chunk: SpeakableChunk, chunks: SpeakableChunk[], persisted?: { sectionId?: string }) => {
     const chunkPosition = Math.max(0, chunks.indexOf(chunk));
@@ -153,13 +153,14 @@ export function useSpeechPlayer(onProgress: (item: LibraryItem) => void, prefere
     if (!current) return;
     if (!canStartFreePlayback()) { commit({ ...current, sentenceIndex: chunkIndex.current, updatedAt: Date.now() }, 'paused'); return; }
     clearTimer();
-    const persisted = persistedChunkFor(current);
-    const sourceText = persisted?.text ?? current.speakableText ?? current.text;
+    const usesChunkedSource = current.storageMode === 'chunked' && !current.speakableText;
+    const persisted = usesChunkedSource ? persistedChunkFor(current) : undefined;
+    const sourceText = current.speakableText ?? persisted?.text ?? current.text;
     const resolvedPreferences = resolveRuntimeSpeechPreferences(preferencesRef.current, current, voices, goldenProfileRef.current);
     const currentPreferences = resolvedPreferences.adaptiveListeningEnabled ? { ...resolvedPreferences, ...adaptiveChange(sourceText.slice(Math.max(0, current.currentCharacterOffset ?? 0), (current.currentCharacterOffset ?? 0) + 500), resolvedPreferences) } : resolvedPreferences;
     const chunks = processSpeechText(sourceText, currentPreferences, current.language);
     if (index >= chunks.length || chunks.length === 0) {
-      if (current.storageMode === 'chunked') {
+      if (usesChunkedSource) {
         const nextSequence = (current.currentChunkIndex ?? 0) + 1;
         if (persistedChunkFor(current, nextSequence)) {
           const next = { ...current, currentChunkIndex: nextSequence, sentenceIndex: 0, currentParagraphIndex: 0, currentCharacterOffset: 0, updatedAt: Date.now() };
@@ -179,8 +180,8 @@ export function useSpeechPlayer(onProgress: (item: LibraryItem) => void, prefere
     const position = positionForChunk(current, chunks[chunkIndex.current], chunks, persisted);
     const usableVoices = voices.filter((voice) => !unavailableVoiceIds.current.has(voice.identifier));
     const selectedVoice = currentPreferences.recommendedListening ? currentPreferences.voiceIdentifier : (current.selectedVoice && usableVoices.some((voice) => voice.identifier === current.selectedVoice) ? current.selectedVoice : undefined);
-    const chunkCount = current.storageMode === 'chunked' ? Math.max(1, getLargeDocumentInfo(current.id)?.processedUnits ?? getDocumentChunkCount(current.id)) : chunks.length;
-    const next = { ...current, ...position, selectedVoice, progress: current.storageMode === 'chunked' ? Math.min(1, ((current.currentChunkIndex ?? 0) + chunkIndex.current / Math.max(1, chunks.length)) / chunkCount) : chunks.length ? chunkIndex.current / chunks.length : 0, updatedAt: Date.now() };
+    const chunkCount = usesChunkedSource ? Math.max(1, getLargeDocumentInfo(current.id)?.processedUnits ?? getDocumentChunkCount(current.id)) : chunks.length;
+    const next = { ...current, ...position, selectedVoice, progress: usesChunkedSource ? Math.min(1, ((current.currentChunkIndex ?? 0) + chunkIndex.current / Math.max(1, chunks.length)) / chunkCount) : chunks.length ? chunkIndex.current / chunks.length : 0, updatedAt: Date.now() };
     commit(next, 'playing');
     void recordListening(chunks[chunkIndex.current].text.trim().split(/\s+/).filter(Boolean).length, chunks[chunkIndex.current].text.trim().split(/\s+/).filter(Boolean).length * 0.42 / Math.max(0.1, currentPreferences.rate), currentPreferences.rate);
     const onDone = () => {
@@ -225,7 +226,9 @@ export function useSpeechPlayer(onProgress: (item: LibraryItem) => void, prefere
     const session = cancelSpeech();
     const currentPreferences = preferencesRef.current;
     const effective = resolveRuntimeSpeechPreferences({ ...currentPreferences, modeId: next.selectedModeId ?? currentPreferences.modeId }, next, voices, goldenProfileRef.current);
-    const playableText = next.storageMode === 'chunked' ? undefined : next.type === 'article' || next.sourceType === 'url' ? removeArticleReferenceNoise(next.text) : next.text;
+    // A reviewed listening version is intentional user input. Keep it ahead of automatic
+    // article cleanup so opening a saved item never overwrites their edits.
+    const playableText = next.speakableText ?? (next.storageMode === 'chunked' ? undefined : next.type === 'article' || next.sourceType === 'url' ? removeArticleReferenceNoise(next.text) : next.cleanedText ?? next.text);
     const selectedVoice = effective.recommendedListening ? effective.voiceIdentifier : currentPreferences.voiceIdentifier;
     const resolved = { ...next, ...(playableText === undefined ? {} : { speakableText: playableText }), rate: effective.rate, pitch: effective.pitch, selectedVoice, completed: false, currentChunkIndex: next.storageMode === 'chunked' ? Math.max(0, next.currentChunkIndex ?? 0) : next.currentChunkIndex };
     largeChunkCache.current.clear(); active.current = resolved; chunkIndex.current = Math.max(0, next.sentenceIndex); setItem(resolved); setState('ready');
@@ -272,7 +275,7 @@ export function useSpeechPlayer(onProgress: (item: LibraryItem) => void, prefere
   }, [cancelSpeech, clearTimer, commit, stopFreePlaybackMeter]);
   const jump = useCallback((delta: number) => { if (!canStartFreePlayback()) return; const session = cancelSpeech(); speak(Math.max(0, chunkIndex.current + delta), session); }, [canStartFreePlayback, cancelSpeech, speak]);
   const jumpToChunk = useCallback((sequence: number) => {
-    const current = active.current; if (!current || current.storageMode !== 'chunked') return;
+    const current = active.current; if (!current || current.storageMode !== 'chunked' || current.speakableText) return;
     const session = cancelSpeech(); const next = { ...current, currentChunkIndex: Math.max(0, sequence), sentenceIndex: 0, currentParagraphIndex: 0, currentCharacterOffset: 0, updatedAt: Date.now() };
     active.current = next; chunkIndex.current = 0; setItem(next); speak(0, session);
   }, [cancelSpeech, speak]);
@@ -283,7 +286,7 @@ export function useSpeechPlayer(onProgress: (item: LibraryItem) => void, prefere
     const current = active.current;
     if (!current || !canStartFreePlayback()) return;
     const position = Math.max(0, Math.min(1, normalizedPosition));
-    if (current.storageMode === 'chunked') {
+    if (current.storageMode === 'chunked' && !current.speakableText) {
       const availableChunkCount = getDocumentChunkCount(current.id);
       if (!availableChunkCount) return;
       const targetSequence = Math.max(0, Math.min(availableChunkCount - 1, Math.round(position * Math.max(0, availableChunkCount - 1))));
@@ -313,6 +316,24 @@ export function useSpeechPlayer(onProgress: (item: LibraryItem) => void, prefere
     }
     setItem(next); onProgress(next);
     if (wasPlaying) timer.current = setTimeout(() => speak(chunkIndex.current, session), 50);
+  }, [cancelSpeech, onProgress, speak, speechSourceFor, state, voices]);
+
+  /** Rebuilds sentence boundaries after Review Text saves, preserving the nearest spoken position. */
+  const replaceListeningItem = useCallback((replacement: LibraryItem) => {
+    const current = active.current;
+    if (!current || current.id !== replacement.id) return;
+    const previousChunks = processSpeechText(speechSourceFor(current), resolveRuntimeSpeechPreferences(preferencesRef.current, current, voices, goldenProfileRef.current), current.language);
+    const next = { ...replacement, rate: current.rate, pitch: current.pitch, selectedVoice: current.selectedVoice, updatedAt: replacement.updatedAt };
+    const rebuilt = processSpeechText(speechSourceFor(next), resolveRuntimeSpeechPreferences(preferencesRef.current, next, voices, goldenProfileRef.current), next.language);
+    const nextIndex = Math.max(0, Math.min(Math.max(0, rebuilt.length - 1), remapSpeechChunkIndex(previousChunks, rebuilt, chunkIndex.current)));
+    const wasPlaying = state === 'playing';
+    const session = cancelSpeech();
+    const positioned = { ...next, sentenceIndex: nextIndex, progress: rebuilt.length ? nextIndex / rebuilt.length : 0, currentCharacterOffset: rebuilt[nextIndex]?.characterOffset ?? 0, updatedAt: Date.now() };
+    active.current = positioned;
+    chunkIndex.current = nextIndex;
+    setItem(positioned);
+    onProgress(positioned);
+    if (wasPlaying && rebuilt.length) timer.current = setTimeout(() => speak(nextIndex, session), 50);
   }, [cancelSpeech, onProgress, speak, speechSourceFor, state, voices]);
 
   const preview = useCallback((settings: Pick<SpeechPreferences, 'voiceIdentifier' | 'rate' | 'pitch' | 'volume'>) => {
@@ -360,5 +381,5 @@ export function useSpeechPlayer(onProgress: (item: LibraryItem) => void, prefere
 
   const sentences = useMemo(() => item ? processSpeechText(speechSourceFor(item), resolveRuntimeSpeechPreferences(preferences, item, voices, goldenProfile), item.language).map((chunk) => chunk.text) : [], [item, preferences, voices, goldenProfile, speechSourceFor]);
   const chapterTitle = item?.storageMode === 'chunked' ? persistedChunkFor(item)?.sectionTitle : undefined;
-  return { item, state, voices, load, clear, play, pause, jump, jumpToChunk, seekToNormalizedPosition, updateSettings, preview, stopPreview, playText, playConversation, sentences, chapterTitle };
+  return { item, state, voices, load, clear, play, pause, jump, jumpToChunk, seekToNormalizedPosition, updateSettings, replaceListeningItem, preview, stopPreview, playText, playConversation, sentences, chapterTitle };
 }

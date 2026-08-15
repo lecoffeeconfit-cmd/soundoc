@@ -5,13 +5,14 @@ import { colors, radius, shadows, space, type } from '../lib/theme';
 type Props = {
   enabled: boolean;
   classification: string;
+  integrated?: boolean;
   reduceEffects?: boolean;
   onValueChange: (value: boolean) => void;
   onOpenInspector?: () => void;
 };
 
 /** The one special control in Settings: a compact, gold, tactile recommendation switch. */
-export function RecommendedListeningSwitch({ enabled, classification, reduceEffects = false, onValueChange, onOpenInspector }: Props) {
+export function RecommendedListeningSwitch({ enabled, classification, integrated = false, reduceEffects = false, onValueChange, onOpenInspector }: Props) {
   const slide = useRef(new Animated.Value(enabled ? 1 : 0)).current;
 
   useEffect(() => {
@@ -27,7 +28,7 @@ export function RecommendedListeningSwitch({ enabled, classification, reduceEffe
     onValueChange(!enabled);
   };
 
-  return <Pressable onPress={toggle} accessibilityRole="switch" accessibilityState={{ checked: enabled }} accessibilityLabel="Golden Switch, Recommended" accessibilityHint="Optimizes the installed voice, speech settings, and natural pacing" style={({ pressed }) => [styles.card, enabled && styles.cardEnabled, pressed && styles.pressed]}>
+  return <Pressable onPress={toggle} accessibilityRole="switch" accessibilityState={{ checked: enabled }} accessibilityLabel="Golden Switch, Recommended" accessibilityHint="Optimizes the installed voice, speech settings, and natural pacing" style={({ pressed }) => [styles.card, enabled && styles.cardEnabled, integrated && styles.cardIntegrated, pressed && styles.pressed]}>
     <View style={[styles.iconWell, enabled && styles.iconWellEnabled]}><Text style={[styles.icon, enabled && styles.iconEnabled]}>✦</Text></View>
     <View style={styles.copy}>
       <View style={styles.titleRow}><Text style={styles.title}>Golden Switch</Text>{onOpenInspector && <Pressable onPress={(event) => { event.stopPropagation(); onOpenInspector(); }} hitSlop={8} style={styles.infoButton} accessibilityRole="button" accessibilityLabel="Open Golden Switch Settings" accessibilityHint="Shows the settings Golden Switch is currently using"><Text style={styles.infoText}>ⓘ</Text></Pressable>}</View>
@@ -43,7 +44,7 @@ export function RecommendedListeningSwitch({ enabled, classification, reduceEffe
 }
 
 const styles = StyleSheet.create({
-  card: { minHeight: 144, marginTop: space.lg, padding: space.md, borderRadius: radius.large, backgroundColor: colors.surfaceElevated, borderWidth: 1, borderTopColor: 'rgba(255,255,255,0.12)', borderBottomColor: 'rgba(0,0,0,0.72)', flexDirection: 'row', alignItems: 'center', gap: space.sm, ...shadows.raised },
+  card: { minHeight: 144, padding: space.md, borderRadius: radius.large, backgroundColor: colors.surfaceElevated, borderWidth: 1, borderTopColor: 'rgba(255,255,255,0.12)', borderBottomColor: 'rgba(0,0,0,0.72)', flexDirection: 'row', alignItems: 'center', gap: space.sm, ...shadows.raised },
   cardEnabled: { borderColor: colors.recommendedGoldDark, borderTopColor: colors.recommendedGoldDark, borderBottomColor: colors.recommendedGoldDark, shadowColor: colors.recommendedGold, shadowOpacity: 0.18, shadowRadius: 15 },
   iconWell: { width: 40, height: 40, borderRadius: radius.small, backgroundColor: colors.surfaceInset, borderWidth: 1, borderTopColor: 'rgba(255,255,255,0.08)', borderBottomColor: 'rgba(0,0,0,0.7)', alignItems: 'center', justifyContent: 'center' },
   iconWellEnabled: { backgroundColor: 'rgba(216,180,90,0.14)', borderColor: colors.recommendedGoldDark },
@@ -68,4 +69,5 @@ const styles = StyleSheet.create({
   block: { width: 29, height: 28, borderRadius: 9, backgroundColor: colors.surfacePressed, borderWidth: 1, borderTopColor: 'rgba(255,255,255,0.08)', borderBottomColor: 'rgba(0,0,0,0.7)' },
   blockEnabled: { backgroundColor: colors.recommendedGold, borderTopColor: colors.recommendedGoldBright, borderBottomColor: colors.recommendedGoldDark, shadowColor: colors.recommendedGold, shadowOpacity: 0.85, shadowRadius: 14, shadowOffset: { width: 0, height: 0 }, elevation: 9 },
   pressed: { transform: [{ scale: 0.985 }] },
+  cardIntegrated: { marginTop: 0, borderWidth: 0, borderRadius: 0, shadowOpacity: 0, shadowRadius: 0, elevation: 0 },
 });

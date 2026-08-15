@@ -160,6 +160,14 @@ export function getDocumentChunkCount(documentId: string) {
   return Number(db.getFirstSync<{ count: number }>('SELECT COUNT(*) AS count FROM document_chunks WHERE document_id = ?', documentId)?.count ?? 0);
 }
 
+/** Returns the already-cleaned chunk stream only when a user explicitly opens Review Text. */
+export function getDocumentText(documentId: string) {
+  return db.getAllSync<{ text: string }>('SELECT text FROM document_chunks WHERE document_id = ? ORDER BY sequence ASC', documentId)
+    .map((chunk) => chunk.text)
+    .filter(Boolean)
+    .join('\n\n');
+}
+
 export function listDocumentChapters(documentId: string): DocumentChapter[] {
   return db.getAllSync<{ document_id: string; section_id: string; section_title: string; sequence: number }>(`SELECT document_id, section_id, section_title, MIN(sequence) AS sequence
     FROM document_chunks WHERE document_id = ? AND section_id IS NOT NULL AND section_title IS NOT NULL
