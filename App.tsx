@@ -74,6 +74,7 @@ const MINI_PLAYER_COLLAPSED_HEIGHT = 18;
 // restrained bottom shadow leaves a small, visible dark dock seam.
 const MINI_PLAYER_DOCK_GAP = 6;
 const FALLBACK_MINI_PLAYER_DOCK_BOTTOM = MINI_PLAYER_TAB_BAR_DOCK_HEIGHT + MINI_PLAYER_DOCK_GAP;
+const MIN_GOLDEN_FEEDBACK_PLAYBACK_SECONDS = 3;
 const sampleText = 'Welcome to Soundoc. Your iPhone can read articles, notes, and documents aloud using a voice already on your device.';
 const defaultSpeechPreferences: SpeechPreferences = { presetId: 'recommended', modeId: 'recommended', rate: GOLDEN_PRESET.rate, pitch: GOLDEN_PRESET.pitch, volume: GOLDEN_PRESET.volume, sentencePauseMs: GOLDEN_PRESET.sentencePauseMs, paragraphPauseMs: GOLDEN_PRESET.paragraphPauseMs, headingPauseMs: GOLDEN_PRESET.headingPauseMs, pronunciationRules: [], skipHeadings: false, skipUrls: true, skipCitations: true, skipSiteBoilerplate: true, skipNavigationAndAds: true, skipConsecutiveDuplicates: true, skipLongNumbersAndCodes: true, skipReferenceSection: true, preserveHeadings: true, favoriteVoiceIds: [], recentVoiceIds: [], adaptiveListeningEnabled: false, recommendedListening: true, podcastModeEnabled: false, smartFilteringEnabled: true, ...applyGoldenPreset() };
 type ListeningSettings = SpeechPreferences;
@@ -141,6 +142,7 @@ function SoundocApp() {
   const [tabBarTop, setTabBarTop] = useState<number | null>(null);
   const listeningPersistTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const goldenListeningSeconds = useRef<number | null>(null);
+  const goldenPlaybackSecondsThisSession = useRef(0);
   const updateReduceEffects = useCallback((value: boolean) => {
     setReduceEffects(value);
     void AsyncStorage.setItem('soundoc.reduce.effects', value ? 'true' : 'false').catch(() => undefined);
@@ -213,6 +215,7 @@ function SoundocApp() {
       const elapsedSeconds = Math.floor((now - lastRecordedAt) / 1000);
       if (elapsedSeconds <= 0) return;
       lastRecordedAt += elapsedSeconds * 1000;
+      goldenPlaybackSecondsThisSession.current += elapsedSeconds;
       goldenListeningSeconds.current = (goldenListeningSeconds.current ?? 0) + elapsedSeconds;
       setGoldenProfile((current) => current ? addGoldenListeningSeconds(current, elapsedSeconds) : current);
     };
@@ -229,7 +232,7 @@ function SoundocApp() {
     });
   }, [goldenProfile, listeningDefaults, player.item?.sentenceIndex, player.state, player.voices]);
   useEffect(() => {
-    if (!goldenProfile || screen !== 'settings' || !isGoldenPresetActive(listeningDefaults) || !shouldPromptGoldenFeedback(goldenProfile)) return;
+    if (goldenPlaybackSecondsThisSession.current < MIN_GOLDEN_FEEDBACK_PLAYBACK_SECONDS || !goldenProfile || screen !== 'settings' || !isGoldenPresetActive(listeningDefaults) || !shouldPromptGoldenFeedback(goldenProfile)) return;
     setShowGoldenFeedback(true);
     setGoldenProfile((current) => current ? markGoldenFeedbackPrompt(current) : current);
   }, [goldenProfile, listeningDefaults.recommendedListening, listeningDefaults.modeId, screen]);
@@ -237,7 +240,7 @@ function SoundocApp() {
   useEffect(() => {
     const wasPlaying = lastPlayerState.current === 'playing';
     lastPlayerState.current = player.state;
-    if (!wasPlaying || player.state !== 'paused' || !goldenProfile || !isGoldenPresetActive(listeningDefaults)) return;
+    if (!wasPlaying || player.state !== 'paused' || goldenPlaybackSecondsThisSession.current < MIN_GOLDEN_FEEDBACK_PLAYBACK_SECONDS || !goldenProfile || !isGoldenPresetActive(listeningDefaults)) return;
     const profileWithLatestListening = goldenListeningSeconds.current === null || goldenListeningSeconds.current <= goldenProfile.totalListeningSeconds
       ? goldenProfile
       : { ...goldenProfile, totalListeningSeconds: goldenListeningSeconds.current };

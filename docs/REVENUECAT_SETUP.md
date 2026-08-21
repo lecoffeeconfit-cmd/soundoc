@@ -10,7 +10,7 @@ In RevenueCat, open **Soundoc → Project Settings → API keys → App specific
 EXPO_PUBLIC_REVENUECAT_IOS_API_KEY=your_apple_public_sdk_key
 ```
 
-For local development, copy `.env.example` to `.env.local` and fill in the iOS value. For EAS, add the same value as a `production` (and, when needed, `preview` / `development`) environment variable in the Expo dashboard or with `eas env:create`. `EXPO_PUBLIC_` values are intentionally embedded in the app bundle, which is appropriate only for RevenueCat's public mobile SDK key.
+For local development, copy `.env.example` to `.env.local` and fill in the iOS value. For EAS, add the same value to the `development`, `preview`, and `production` environments in the Expo dashboard or with `eas env:set`. Soundoc's EAS profiles explicitly select those matching environments. `EXPO_PUBLIC_` values are intentionally embedded in the app bundle, which is appropriate only for RevenueCat's public mobile SDK key.
 
 The app is already wired for a future Android public key as `EXPO_PUBLIC_REVENUECAT_ANDROID_API_KEY`; no Android products are assumed or configured.
 
@@ -35,5 +35,7 @@ npx expo start --dev-client
 eas build --profile development --platform ios
 eas build --profile production --platform ios
 ```
+
+If a local build says the API key is missing, run `eas env:pull --environment development` (or create `.env.local` from `.env.example`) and restart Expo. Environment values are embedded when the JavaScript bundle is built, so an already-installed build will not receive a newly added key until it is rebuilt or reloaded with the configured environment.
 
 Use an App Store sandbox tester or TestFlight to test Apple purchases. Verify every subscription state against RevenueCat Customer Info and entitlement `pro`, including cancellation, expiration, restore, and offline cached access.

@@ -8,8 +8,8 @@ export const REVENUECAT_MONTHLY_PACKAGE_ID = '$rc_monthly';
 export const REVENUECAT_ANNUAL_PACKAGE_ID = '$rc_annual';
 
 function publicKeyForCurrentPlatform() {
-  if (Platform.OS === 'ios') return process.env.EXPO_PUBLIC_REVENUECAT_IOS_API_KEY;
-  if (Platform.OS === 'android') return process.env.EXPO_PUBLIC_REVENUECAT_ANDROID_API_KEY;
+  if (Platform.OS === 'ios') return process.env.EXPO_PUBLIC_REVENUECAT_IOS_API_KEY?.trim();
+  if (Platform.OS === 'android') return process.env.EXPO_PUBLIC_REVENUECAT_ANDROID_API_KEY?.trim();
   return undefined;
 }
 
