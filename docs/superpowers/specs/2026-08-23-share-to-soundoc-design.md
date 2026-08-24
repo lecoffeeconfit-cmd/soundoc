@@ -140,7 +140,27 @@ The network and extraction work currently inside `prepareLink` will be factored 
 
 The resolver will return a discriminated result representing either an article extraction or a supported direct document. Manual Web Link import will continue to show its existing preview and error UI. Shared-link processing will use the same result but treat the share action as confirmation, saving directly through the existing Library paths.
 
-Article extraction itself will not be duplicated or rewritten. Any small improvement required by shared-link fixtures must remain reusable by both entry points.
+Article extraction will not be duplicated. The current deterministic extractor will be hardened behind the same resolver so every improvement applies equally to manual Web Link imports and Share to Soundoc.
+
+## Main-content extraction and playback start
+
+Soundoc will keep article extraction local and deterministic, with no paid API or remote parsing service. The existing JSON-LD, semantic-container, and paragraph fallback paths will be preserved, but candidate selection will no longer depend on the first regular-expression match alone.
+
+The hardened extractor will:
+
+- parse enough document structure to preserve nested article containers without truncating at an inner closing tag;
+- prefer valid `Article`, `NewsArticle`, and `ScholarlyArticle` JSON-LD bodies when they contain substantial readable text;
+- collect multiple `article`, `main`, and recognized content-container candidates rather than only the first match;
+- score candidates using paragraph text density, punctuation, heading continuity, useful-text length, link density, boilerplate class/role penalties, and repeated-control penalties;
+- remove scripts, styles, navigation, cookie/consent surfaces, ads, sharing controls, related-story modules, newsletter/sign-in prompts, repetitive site headers and footers, image-credit-only rows, and reference-list tails;
+- preserve useful headings, ordered content, Unicode, quotations, and article paragraphs;
+- collapse repeated title, dek, byline, update-time, and paragraph text conservatively;
+- retain the original fetched URL and final resolved URL metadata while using canonical URLs only for duplicate comparison;
+- emit a confidence score and privacy-safe warning codes when the page is unusually short, script-only, ambiguous, or contains too much control text.
+
+For ordinary articles, the first two primary speakable blocks will be the detected headline and the first meaningful article paragraph. A confidently identified byline remains available as item metadata rather than interrupting that start. For academic articles, the abstract is meaningful article content and may follow the title before the body. Site navigation, breadcrumbs, dates repeated from page chrome, sharing prompts, and other controls must never precede the main content. This same ordered text becomes the existing Player's initial chunks, so both manual and shared imports start consistently without a separate playback-offset hack.
+
+Extraction will have bounded work limits for input size, element count, candidate count, and output size. If no candidate clears the readable-content threshold, a shared URL will remain available for its bounded retry/manual-fallback state rather than saving page chrome as an article; a manual Web Link import will keep its existing error/preview behavior.
 
 ## Main-app processing lifecycle
 
@@ -177,15 +197,7 @@ The setting affects only Share to Soundoc items. Manual imports and ordinary Lib
 
 ## Home experience
 
-Only the Home import group will be redesigned into a responsive four-option layout:
-
-| Paste Text | Web Link |
-| --- | --- |
-| Import File | Share to Soundoc |
-
-Cards will reuse current Soundoc tokens, raised graphite surfaces, orange primary treatment, rounded corners, shadows, typography, and pressed states. Each card will have a clear icon, short title, concise description, minimum 44-point target, VoiceOver label, and no ambiguous gesture.
-
-At ordinary phone widths and text sizes the cards form a balanced 2 × 2 grid. At large accessibility text sizes or constrained widths they fall back to a one-column layout so content is not clipped or compressed. Camera and photo actions remain unchanged below the primary group.
+The approved Home screen already presents Web Article or Link, Share to Soundoc, PDF & Documents, and Paste Text as a compact four-card vertical stack. That layout, card order, borders, typography, spacing, Continue Listening placement, camera/photo actions, and existing handlers will remain unchanged. The native work will only connect the existing Share to Soundoc instructional card to the real capability and add the controlled Auto-play setting to its existing page sheet.
 
 Tapping Share to Soundoc opens a compact page sheet with:
 
@@ -265,7 +277,9 @@ The current privacy posture remains local-first: URLs are shared into the App Gr
 - Status transitions, acknowledgment, retry classification, retry bounds, and crash recovery
 - Auto-play default, persistence, mirrored value, and Off behavior
 - Shared/manual URL resolver parity with mocked fetch/redirect/document/article responses
-- Existing article extraction fixtures, including unusual Unicode and very long content
+- Existing article extraction fixtures plus nested content containers, multiple competing article cards, leading navigation/breadcrumbs, cookie and subscription overlays, repeated dek/byline text, related-story tails, image credits, unusual Unicode, academic abstracts/references, very long content, and script-only pages
+- Playback-start fixtures asserting that the first speakable chunks are the headline and first meaningful paragraph, never page chrome
+- Extraction work-limit fixtures for oversized HTML, excessive elements/candidates, and low-confidence non-article pages
 - Existing project fixtures and `npx tsc --noEmit`
 
 ### Native and build tests
@@ -315,6 +329,7 @@ All code-side capability settings will be included. The final handoff will repor
 - Soundoc appears for supported HTTP/HTTPS shares with a narrow production activation rule.
 - Selecting Soundoc validates and durably queues the URL without networking, audio, or forced app launch.
 - Soundoc processes pending links on launch/foreground through the same URL resolver and extraction logic used by manual imports.
+- Shared and manual articles use the same hardened main-content extraction, begin with the headline and first meaningful paragraph, and never start playback with navigation or control text.
 - Successful pages become normal Library items and use the existing Player.
 - Auto-play shared links defaults On, can be changed from Home and Settings, and affects only shared links.
 - Duplicate shares do not create duplicate Library items or reset existing progress.
