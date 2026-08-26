@@ -1,5 +1,13 @@
 export type ImportCapability = { key: string; title: string; detail: string; capacity: string };
 
+/** Shared extractor guardrail used before either Files or Share Extension imports copy data. */
+export const MAX_EXTRACTABLE_DOCUMENT_BYTES = 75 * 1024 * 1024;
+
+/** The single document extension list shared by the Files picker and native Share Extension. */
+export const SUPPORTED_DOCUMENT_EXTENSIONS = ['txt', 'md', 'markdown', 'html', 'htm', 'rtf', 'pdf', 'docx', 'epub'] as const;
+
+export const SUPPORTED_IMAGE_EXTENSIONS = ['jpg', 'jpeg', 'png', 'heic', 'heif', 'webp', 'gif', 'bmp', 'tif', 'tiff'] as const;
+
 /** Keep user-facing import claims in one place so the UI cannot drift from the importer. */
 export const IMPORT_PICKER_TYPES = [
   'text/plain', 'text/markdown', 'text/html', 'text/rtf', 'application/rtf',

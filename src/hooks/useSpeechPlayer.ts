@@ -274,6 +274,32 @@ export function useSpeechPlayer(onProgress: (item: LibraryItem) => void, prefere
     if (active.current) commit({ ...active.current, sentenceIndex: chunkIndex.current, updatedAt: Date.now() }, 'paused');
   }, [cancelSpeech, clearTimer, commit, stopFreePlaybackMeter]);
   const jump = useCallback((delta: number) => { if (!canStartFreePlayback()) return; const session = cancelSpeech(); speak(Math.max(0, chunkIndex.current + delta), session); }, [canStartFreePlayback, cancelSpeech, speak]);
+  const jumpToSection = useCallback((sectionIndex: number) => {
+    const current = active.current;
+    if (!current || current.storageMode === 'chunked') return false;
+    const section = current.sections?.[sectionIndex];
+    if (!section || !canStartFreePlayback()) return false;
+    const source = speechSourceFor(current);
+    const sections = current.sections ?? [];
+    let cursor = 0;
+    let offset = -1;
+    for (let index = 0; index <= sectionIndex; index += 1) {
+      const candidate = sections[index];
+      const probes = [candidate?.text.trim(), candidate?.title?.trim()].filter((probe): probe is string => Boolean(probe));
+      const match = probes.map((probe) => ({ probe, index: source.indexOf(probe, cursor) })).filter((entry) => entry.index >= 0).sort((left, right) => left.index - right.index)[0];
+      if (!match) return false;
+      if (index === sectionIndex) offset = match.index;
+      cursor = match.index + Math.max(1, match.probe.length);
+    }
+    if (offset < 0) return false;
+    const resolvedPreferences = resolveRuntimeSpeechPreferences(preferencesRef.current, current, voices, goldenProfileRef.current);
+    const chunks = processSpeechText(source, resolvedPreferences, current.language);
+    const target = processSpeechText(source.slice(0, offset), resolvedPreferences, current.language).length;
+    if (!chunks.length || target >= chunks.length) return false;
+    const session = cancelSpeech();
+    speak(target, session);
+    return true;
+  }, [canStartFreePlayback, cancelSpeech, speak, speechSourceFor, voices]);
   const jumpToChunk = useCallback((sequence: number) => {
     const current = active.current; if (!current || current.storageMode !== 'chunked' || current.speakableText) return;
     const session = cancelSpeech(); const next = { ...current, currentChunkIndex: Math.max(0, sequence), sentenceIndex: 0, currentParagraphIndex: 0, currentCharacterOffset: 0, updatedAt: Date.now() };
@@ -381,5 +407,5 @@ export function useSpeechPlayer(onProgress: (item: LibraryItem) => void, prefere
 
   const sentences = useMemo(() => item ? processSpeechText(speechSourceFor(item), resolveRuntimeSpeechPreferences(preferences, item, voices, goldenProfile), item.language).map((chunk) => chunk.text) : [], [item, preferences, voices, goldenProfile, speechSourceFor]);
   const chapterTitle = item?.storageMode === 'chunked' ? persistedChunkFor(item)?.sectionTitle : undefined;
-  return { item, state, voices, load, clear, play, pause, jump, jumpToChunk, seekToNormalizedPosition, updateSettings, replaceListeningItem, preview, stopPreview, playText, playConversation, sentences, chapterTitle };
+  return { item, state, voices, load, clear, play, pause, jump, jumpToChunk, jumpToSection, seekToNormalizedPosition, updateSettings, replaceListeningItem, preview, stopPreview, playText, playConversation, sentences, chapterTitle };
 }

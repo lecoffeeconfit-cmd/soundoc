@@ -21,6 +21,7 @@ Feedback is optional and account-free. From Settings, users can open their nativ
 - SQLite-backed local library and local full-text filtering
 - Text and clipboard import, safe public article URL validation/cleanup, and TXT/Markdown/HTML/RTF/DOCX/EPUB/PDF document import
 - Files provider support through the iOS Files picker (iCloud Drive, Google Drive, Dropbox, and OneDrive)
+- Share Sheet receiving for webpages, selected text, one supported local document, or one image for OCR review
 - On-device OCR for a selected photo or camera capture
 - Dynamic word-count and listening-time estimates
 - Continue Listening, persistent mini-player, full reading player, speed and voice controls
@@ -33,6 +34,6 @@ Feedback is optional and account-free. From Settings, users can open their nativ
 
 PDF extraction is best-effort by design: password-protected, image-only, and unusually encoded PDFs report a clear next step instead of pretending their text was readable. DOCX and EPUB parsing is local and excludes DRM-protected books.
 
-Photo and camera OCR use a native Expo module backed by device recognition. Test that feature in a development or production build, not Expo Go. Safari and other-app sharing is represented by the app-side deep-link contract in [share-extension/README.md](share-extension/README.md); a final iOS Share Extension target and App Group still need to be configured alongside the real Apple bundle identifier.
+Photo and camera OCR use a native Expo module backed by device recognition. Test that feature and Share to Soundoc in a development or production build, not Expo Go. Share Sheet registration is configured through the `expo-sharing` plugin; see [share-extension/README.md](share-extension/README.md) for the App Group and rebuild requirements.
 
 PowerPoint, Pages, Excel, DRM-protected ebooks, paywalled/login-only articles, social feeds, YouTube transcripts, RSS/email sources, and imported audio remain deliberately outside the local document-reader scope for this release.

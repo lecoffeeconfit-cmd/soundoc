@@ -2,10 +2,12 @@ import { unzipSync, unzlibSync, strFromU8 } from 'fflate';
 import { File } from 'expo-file-system';
 import { cleanText, htmlToText, removeArticleReferenceNoise } from './text';
 import { sectionsFromText } from './documents';
+import { enrichSections } from './sectionIntelligence';
+import { MAX_EXTRACTABLE_DOCUMENT_BYTES } from './importCapabilities';
 import type { SoundocSection, SoundocSourceType } from '../types';
 
 /** Internal extractor guardrail: the import UI deliberately does not advertise a small file cap. */
-export const MAX_EXTRACTABLE_DOCUMENT_BYTES = 75 * 1024 * 1024;
+export { MAX_EXTRACTABLE_DOCUMENT_BYTES } from './importCapabilities';
 const MAX_UNPACKED_BYTES = 180 * 1024 * 1024;
 const MAX_ARCHIVE_ENTRIES = 10_000;
 
@@ -17,7 +19,7 @@ export class DocumentImportError extends Error {
 }
 
 function enrichImportedDocument(document: ImportedDocument, sourceType: SoundocSourceType, extractionMethod: string, originalText?: string): ImportedDocument {
-  return { ...document, sourceType, sections: document.sections ?? sectionsFromText(document.text, document.title), extractionMethod, extractionConfidence: document.extractionConfidence ?? 1, extractionWarnings: document.extractionWarnings ?? [], ...(originalText === undefined ? {} : { originalText }) };
+  return { ...document, sourceType, sections: document.sections ? enrichSections(document.sections) : sectionsFromText(document.text, document.title, { suggestSections: true }), extractionMethod, extractionConfidence: document.extractionConfidence ?? 1, extractionWarnings: document.extractionWarnings ?? [], ...(originalText === undefined ? {} : { originalText }) };
 }
 
 function decodeEntities(value: string) {
@@ -129,7 +131,7 @@ function extractEpub(bytes: Uint8Array): ImportedDocument {
     const heading = raw.match(/<h[1-3][^>]*>([\s\S]*?)<\/h[1-3]>/i)?.[1];
     const chapterTitle = heading ? htmlToText(heading).split('\n')[0] : `Chapter ${index + 1}`;
     const body = cleanText(text);
-    if (body) chapters.push({ id: `epub-chapter-${index + 1}`, title: chapterTitle, text: `${chapterTitle}\n\n${body}`, order: index });
+    if (body) chapters.push({ id: `epub-chapter-${index + 1}`, title: chapterTitle, text: `${chapterTitle}\n\n${body}`, order: index, kind: 'structural' });
   });
   if (!chapters.length) throw new Error('This EPUB has no readable chapters.');
   return { text: cleanText(chapters.map((chapter) => chapter.text).join('\n\n')), title: title ? decodeEntities(title.trim()) : undefined, format: 'EPUB', sections: chapters };
@@ -144,7 +146,9 @@ function pdfOperators(source: string) {
   const chunks: string[] = [];
   for (const match of source.matchAll(/\((?:\\.|[^\\)])*\)\s*Tj/g)) chunks.push(decodePdfString(match[0].replace(/\s*Tj$/, '').slice(1, -1)));
   for (const match of source.matchAll(/\[(.*?)\]\s*TJ/gs)) for (const value of match[1].matchAll(/\((?:\\.|[^\\)])*\)/g)) chunks.push(decodePdfString(value[0].slice(1, -1)));
-  return chunks.join(' ');
+  // Text-show operators usually represent visual line fragments. Keeping line breaks gives the
+  // chapter detector a useful structural signal for book PDFs instead of flattening the book.
+  return chunks.join('\n');
 }
 
 function hasPdfHeader(bytes: Uint8Array) {
@@ -299,5 +303,5 @@ export function extractArticleFromHtml(html: string, sourceUrl: string): Article
   if (repeats > 3) warnings.push('Repeated page text was detected.');
   if (method === 'fallback') warnings.push('No clear article container was found.');
   const confidence = Math.max(0, Math.min(1, (wordCount >= 300 ? 0.45 : wordCount >= 80 ? 0.3 : 0.12) + (title ? 0.15 : 0) + (authors.length || abstract ? 0.1 : 0) + (method === 'json-ld' ? 0.25 : method === 'semantic' ? 0.2 : method === 'readability' ? 0.12 : 0.02) - Math.min(0.25, navigationWords / Math.max(1, wordCount)) - Math.min(0.15, repeats * 0.02)));
-  return { text: assembled, title: title?.trim() || undefined, format: 'Article', sourceUrl, sourceDomain: url.hostname, sourceType: 'url', author: authors[0], sections: sectionsFromText(assembled, title?.trim()), extractionMethod: method, extractionConfidence: confidence, extractionWarnings: warnings, authors, abstract, confidence, suspicious: warnings.length > 0 || confidence < 0.55, warnings, method };
+  return { text: assembled, title: title?.trim() || undefined, format: 'Article', sourceUrl, sourceDomain: url.hostname, sourceType: 'url', author: authors[0], sections: sectionsFromText(assembled, title?.trim(), { suggestSections: true }), extractionMethod: method, extractionConfidence: confidence, extractionWarnings: warnings, authors, abstract, confidence, suspicious: warnings.length > 0 || confidence < 0.55, warnings, method };
 }

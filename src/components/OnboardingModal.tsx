@@ -1,9 +1,15 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Animated, Easing, Modal, PanResponder, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Animated, Easing, Modal, PanResponder, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { instructionalSheetTopPadding } from '../lib/instructionalSheetLayout';
 import { colors, radius, space, type } from '../lib/theme';
 
 type GuideKind = 'import' | 'player' | 'studio' | 'library' | 'bookmarks' | 'privacy';
+
+const headerLayout = StyleSheet.create({
+  headerCopy: { flex: 1, minWidth: 0, flexShrink: 1 },
+  headerAction: { minWidth: 56, minHeight: 44, flexShrink: 0 },
+});
 
 const slides: ReadonlyArray<{ kind: GuideKind; kicker: string; title: string; body: string; tips: readonly string[] }> = [
   { kind: 'import', kicker: '01 · START HERE', title: 'Bring anything to life', body: 'From Home, choose what you want to hear. Soundoc cleans it up and makes it ready to listen.', tips: ['Paste notes or copied text', 'Add a public article link', 'Upload a document or scan a photo'] },
@@ -15,6 +21,7 @@ const slides: ReadonlyArray<{ kind: GuideKind; kicker: string; title: string; bo
 ];
 
 export function OnboardingModal({ onDone }: { onDone: () => void }) {
+  const { height: viewportHeight } = useWindowDimensions();
   const [page, setPage] = useState(0);
   const enter = useRef(new Animated.Value(1)).current;
   const pulse = useRef(new Animated.Value(0)).current;
@@ -49,8 +56,8 @@ export function OnboardingModal({ onDone }: { onDone: () => void }) {
   const translateY = enter.interpolate({ inputRange: [0, 1], outputRange: [20, 0] });
   const previewScale = pulse.interpolate({ inputRange: [0, 1], outputRange: [0.985, 1.015] });
 
-  return <Modal visible animationType="fade" onRequestClose={onDone} statusBarTranslucent><SafeAreaView edges={[]} style={[styles.screen, { paddingTop: insets.top + space.lg, paddingBottom: insets.bottom + space.md }]}>
-    <View style={styles.top}><View><Text style={styles.brand}>Soundoc</Text><Text style={styles.brandCaption}>YOUR LISTENING GUIDE</Text></View><Pressable onPress={onDone} style={({ pressed }) => [styles.skipButton, pressed && styles.pressed]} accessibilityRole="button" accessibilityLabel="Skip onboarding"><Text style={styles.skip}>Skip</Text></Pressable></View>
+  return <Modal visible animationType="fade" onRequestClose={onDone} statusBarTranslucent><SafeAreaView edges={[]} style={[styles.screen, { paddingTop: insets.top + instructionalSheetTopPadding(viewportHeight), paddingBottom: insets.bottom + space.md }]}>
+    <View style={styles.top}><View style={headerLayout.headerCopy}><Text style={styles.brand}>Soundoc</Text><Text style={styles.brandCaption}>YOUR LISTENING GUIDE</Text></View><Pressable onPress={onDone} style={({ pressed }) => [styles.skipButton, headerLayout.headerAction, pressed && styles.pressed]} accessibilityRole="button" accessibilityLabel="Skip onboarding"><Text style={styles.skip}>Skip</Text></Pressable></View>
     <ScrollView {...swipeResponder.panHandlers} style={styles.contentScroll} contentContainerStyle={styles.contentScrollContainer} showsVerticalScrollIndicator={false} directionalLockEnabled accessibilityLabel="Onboarding guide. Swipe left or right to change steps.">
       <Animated.View style={[styles.content, { opacity: enter, transform: [{ translateY }] }]}>
         <Animated.View style={[styles.previewFrame, { transform: [{ scale: previewScale }] }]}><FeaturePreview kind={slide.kind} pulse={pulse} /></Animated.View>
@@ -77,7 +84,7 @@ function FeaturePreview({ kind, pulse }: { kind: GuideKind; pulse: Animated.Valu
 const styles = StyleSheet.create({
   screen: { flex: 1, overflow: 'hidden', backgroundColor: colors.backgroundPrimary, paddingHorizontal: space.xl },
   top: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', zIndex: 1 }, brand: { ...type.title, color: colors.textPrimary, letterSpacing: -0.8 }, brandCaption: { ...type.caption, color: colors.textTertiary, letterSpacing: 1.1, marginTop: 1 }, skipButton: { minWidth: 64, minHeight: 44, paddingHorizontal: space.sm, borderRadius: radius.pill, backgroundColor: colors.surfaceInset, borderWidth: 1, borderColor: colors.borderSubtle, alignItems: 'center', justifyContent: 'center' }, skip: { ...type.label, color: colors.textSecondary },
-  contentScroll: { flex: 1, width: '100%' }, contentScrollContainer: { flexGrow: 1, justifyContent: 'center', paddingVertical: space.md }, content: { width: '100%', alignItems: 'center', paddingTop: space.sm, paddingBottom: space.md },
+  contentScroll: { flex: 1, width: '100%', marginTop: space.xs }, contentScrollContainer: { flexGrow: 1, justifyContent: 'center', paddingVertical: space.md }, content: { width: '100%', alignItems: 'center', paddingTop: space.sm, paddingBottom: space.md },
   previewFrame: { width: '100%', minHeight: 248, borderRadius: radius.xlarge, padding: 1, backgroundColor: 'rgba(255,255,255,0.06)', shadowColor: '#000', shadowOpacity: 0.4, shadowOffset: { width: 0, height: 16 }, shadowRadius: 24, elevation: 10 },
   previewBody: { minHeight: 246, borderRadius: radius.xlarge, padding: space.lg, overflow: 'hidden', backgroundColor: colors.surfacePrimary, borderWidth: 1, borderTopColor: 'rgba(255,255,255,0.08)', borderBottomColor: 'rgba(0,0,0,0.66)', justifyContent: 'center' },
   previewHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }, previewBrand: { ...type.title, color: colors.textPrimary, fontSize: 19 }, previewTiny: { ...type.caption, color: colors.textTertiary, letterSpacing: 0.9 }, previewMuted: { ...type.caption, color: colors.textSecondary }, previewAccent: { ...type.label, color: colors.accentPrimary },

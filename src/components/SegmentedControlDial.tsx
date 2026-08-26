@@ -316,10 +316,15 @@ export function SegmentedControlDial({ value, onChange, label = 'Document naviga
     </View>
     <View style={styles.timelineLabels}><Text style={styles.timelineTime}>{previewTime ?? `${Math.round(displayValue * 100)}%`}</Text><Text style={styles.timelineTime}>{totalDurationSeconds && totalDurationSeconds > 0 ? clockLabel(totalDurationSeconds) : 'Document'}</Text></View></>}
     {!timelineOnly && <Modal visible={jumpToVisible} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setJumpToVisible(false)}>
-      <View style={styles.jumpSheet}><View style={styles.jumpHeader}><View><Text style={styles.jumpTitle}>Jump to</Text><Text style={styles.jumpSubtitle}>Choose a place in this document.</Text></View><Pressable onPress={() => setJumpToVisible(false)} accessibilityRole="button" accessibilityLabel="Close Jump To"><Text style={styles.jumpDone}>Done</Text></Pressable></View><FlatList data={targets} keyExtractor={(target) => target.id} contentContainerStyle={styles.jumpList} renderItem={({ item: target }) => <Pressable onPress={() => chooseTarget(target)} style={({ pressed }) => [styles.jumpRow, pressed && styles.jumpRowPressed]} accessibilityRole="button" accessibilityLabel={`Jump to ${target.title}`}><View style={styles.jumpRowDot} /><View style={styles.jumpRowCopy}><Text style={styles.jumpRowTitle} numberOfLines={1}>{target.title}</Text><Text style={styles.jumpRowPosition}>{Math.round(target.position * 100)}%</Text></View>{Math.abs(target.position - clamp(value / 100)) < 0.005 ? <Text style={styles.jumpCurrent}>Current</Text> : <Text style={styles.jumpChevron}>›</Text>}</Pressable>} /></View>
+      <View style={styles.jumpSheet}><View style={styles.jumpHeader}><View style={headerLayout.headerCopy}><Text style={styles.jumpTitle}>Jump to</Text><Text style={styles.jumpSubtitle}>Choose a place in this document.</Text></View><Pressable style={headerLayout.headerAction} onPress={() => setJumpToVisible(false)} accessibilityRole="button" accessibilityLabel="Close Jump To"><Text style={styles.jumpDone}>Done</Text></Pressable></View><FlatList data={targets} keyExtractor={(target) => target.id} contentContainerStyle={styles.jumpList} renderItem={({ item: target }) => <Pressable onPress={() => chooseTarget(target)} style={({ pressed }) => [styles.jumpRow, pressed && styles.jumpRowPressed]} accessibilityRole="button" accessibilityLabel={`Jump to ${target.title}`}><View style={styles.jumpRowDot} /><View style={styles.jumpRowCopy}><Text style={styles.jumpRowTitle} numberOfLines={1}>{target.title}</Text><Text style={styles.jumpRowPosition}>{Math.round(target.position * 100)}%</Text></View>{Math.abs(target.position - clamp(value / 100)) < 0.005 ? <Text style={styles.jumpCurrent}>Current</Text> : <Text style={styles.jumpChevron}>›</Text>}</Pressable>} /></View>
     </Modal>}
   </View>;
 }
+
+const headerLayout = StyleSheet.create({
+  headerCopy: { flex: 1, minWidth: 0, flexShrink: 1 },
+  headerAction: { minWidth: 56, minHeight: 44, flexShrink: 0, paddingHorizontal: space.xs, alignItems: 'flex-end', justifyContent: 'center' },
+});
 
 const styles = StyleSheet.create({
   wrap: { alignItems: 'center', width: '100%', marginTop: space.sm }, wrapCompact: { marginTop: space.xs },

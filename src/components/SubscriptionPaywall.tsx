@@ -22,6 +22,12 @@ function formatDate(value: string | null) {
   return Number.isNaN(date.getTime()) ? null : date.toLocaleDateString(undefined, { month: 'long', day: 'numeric', year: 'numeric' });
 }
 
+const headerLayout = StyleSheet.create({
+  headerCopy: { flex: 1, minWidth: 0, flexShrink: 1 },
+  headerAction: { minWidth: 56, minHeight: 44, flexShrink: 0, paddingHorizontal: space.xs, alignItems: 'flex-end', justifyContent: 'center' },
+  closeGuard: { flexShrink: 0 },
+});
+
 export function SubscriptionPaywall({ onOpenLegal }: { onOpenLegal: (document: LegalDocument) => void }) {
   const subscription = useSubscription();
   const [selectedPackageId, setSelectedPackageId] = useState<string | null>(null);
@@ -57,7 +63,7 @@ export function SubscriptionPaywall({ onOpenLegal }: { onOpenLegal: (document: L
 
   return <Modal visible={subscription.isPaywallVisible} animationType="slide" presentationStyle="pageSheet" onRequestClose={subscription.closePaywall}>
     <SafeAreaView style={styles.screen} edges={['top', 'bottom']}>
-      <View style={styles.header}><View><Text style={styles.eyebrow}>SOUNDOC PRO</Text><Text style={styles.title}>Listen without limits.</Text></View><Pressable onPress={subscription.closePaywall} hitSlop={10} style={styles.close} accessibilityRole="button" accessibilityLabel="Close Soundoc Pro"><Text style={styles.closeText}>×</Text></Pressable></View>
+      <View style={styles.header}><View style={headerLayout.headerCopy}><Text style={styles.eyebrow}>SOUNDOC PRO</Text><Text style={styles.title}>Listen without limits.</Text></View><Pressable onPress={subscription.closePaywall} hitSlop={10} style={[styles.close, headerLayout.closeGuard]} accessibilityRole="button" accessibilityLabel="Close Soundoc Pro"><Text style={styles.closeText}>×</Text></Pressable></View>
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
         <Text style={styles.subtitle}>Make articles, documents, and notes feel made for listening—with the controls that help you focus.</Text>
         {subscription.isFree && <View style={styles.freePlanNote}><Text style={styles.freePlanKicker}>YOUR SOUNDOC FREE PLAN</Text><Text style={styles.freePlanTitle}>{formatFreeListeningRemaining(subscription.freeListeningSecondsRemaining)} this week</Text><Text style={styles.freePlanText}>{subscription.freeResetLabel ?? 'Resets Monday'}. Imports, your Library, standard device voices, and core listening controls remain available.</Text></View>}

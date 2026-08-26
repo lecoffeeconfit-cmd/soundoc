@@ -1,6 +1,7 @@
 export type ItemType = 'text' | 'article' | 'document';
 export type SoundocSourceType = 'url' | 'text' | 'pdf' | 'docx' | 'epub' | 'html' | 'image' | 'scan' | 'shared';
-export type SoundocSection = { id: string; title?: string; level?: number; text: string; order: number; sourceAnchor?: string };
+export type SoundocSectionKind = 'structural' | 'suggested' | 'fallback';
+export type SoundocSection = { id: string; title?: string; level?: number; text: string; order: number; sourceAnchor?: string; kind?: SoundocSectionKind; summary?: string };
 export type SoundocDocument = { id: string; title: string; author?: string; sourceUrl?: string; sourceDomain?: string; sourceType: SoundocSourceType; originalText?: string; cleanedText: string; speakableText?: string; sections: SoundocSection[]; wordCount: number; language?: string; extractionMethod: string; extractionConfidence: number; extractionWarnings: string[]; createdAt: string; updatedAt: string; lastOpenedAt?: string; completedAt?: string };
 export type SummaryProviderType = 'apple-foundation-model' | 'android-mlkit' | 'local-extractive';
 export type SummaryLength = 'brief' | 'standard' | 'detailed';
@@ -17,7 +18,7 @@ export type Flashcard = { id: string; question: string; answer: string; sectionI
 export type ReviewQuestion = { id: string; type: 'multiple-choice' | 'true-false' | 'short-answer' | 'recall'; question: string; answer: string; choices?: string[]; sectionId: string; sourceExcerpt: string; provider: IntelligenceProvider; isGenerative: boolean };
 export type AdaptiveListeningChange = { rate: number; sentencePauseMs: number; paragraphPauseMs: number; reason: string; appliedAt: string };
 export type PodcastScript = { title: string; turns: Array<{ speaker: 'Host' | 'Guest'; text: string; sectionId?: string }>; provider: IntelligenceProvider; isGenerative: boolean; limitations: string[]; generatedAt: string };
-export type ListeningAnalytics = { minutesListened: number; wordsListened: number; documentsCompleted: number; summaryMinutes: number; averageSpeed: number; timeSavedSeconds: number; mostUsedMode?: string; weeklyGoalMinutes: number; streakDays: number; updatedAt: string };
+export type ListeningAnalytics = { minutesListened: number; wordsListened: number; documentsCompleted: number; summaryMinutes: number; averageSpeed: number; timeSavedSeconds: number; mostUsedMode?: string; weeklyGoalMinutes: number; weeklyMinutesListened: number; currentWeekStart: string; streakDays: number; updatedAt: string };
 
 export type LibraryItem = {
   id: string;
@@ -104,7 +105,7 @@ export type DocumentTextChunk = {
   sourceEnd?: number;
 };
 
-export type DocumentChapter = { documentId: string; id: string; title: string; sequence: number };
+export type DocumentChapter = { documentId: string; id: string; title: string; sequence: number; kind?: SoundocSectionKind; summary?: string };
 
 export type Bookmark = { id: string; libraryItemId: string; sectionId?: string; paragraphIndex?: number; sentenceIndex: number; label?: string; note?: string; createdAt: number; updatedAt: number };
 export type Highlight = { id: string; libraryItemId: string; sectionId?: string; startOffset: number; endOffset: number; text: string; note?: string; createdAt: number; updatedAt: number };

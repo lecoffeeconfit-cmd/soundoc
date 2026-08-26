@@ -35,7 +35,7 @@ export function ListeningStudioModal({ visible, preferences, voices, selectedVoi
   }, [reducedMotion, reveal, studio.enabled]);
   return <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
     <View style={styles.screen}>
-      <View style={styles.header}><View style={styles.headerCopy}><Text style={styles.kicker}>SOUNDoc / MIX</Text><Text style={styles.title}>Listening Studio</Text><Text style={styles.description}>Shape the voice, pacing, pauses, and background sound.</Text></View><Pressable onPress={onClose} accessibilityLabel="Close Listening Studio" hitSlop={10}><Text style={styles.done}>Done</Text></Pressable></View>
+      <View style={styles.header}><View style={styles.headerCopy}><Text style={styles.kicker}>SOUNDoc / MIX</Text><Text style={styles.title}>Listening Studio</Text><Text style={styles.description}>Shape the voice, pacing, pauses, and background sound.</Text></View><Pressable style={styles.headerAction} onPress={onClose} accessibilityLabel="Close Listening Studio" hitSlop={10}><Text style={styles.done}>Done</Text></Pressable></View>
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <View style={styles.toggleCard}><View style={styles.copy}><Text style={styles.cardTitle}>Listening Studio</Text><Text style={styles.cardDescription}>Turn on the mixer when you want more control. Standard playback stays unchanged while it is off.</Text></View><SoundocToggle value={studio.enabled} onValueChange={(enabled) => onUpdateSettings({ listeningStudioEnabled: enabled })} compact accessibilityLabel="Listening Studio" /></View>
         <Animated.View style={[styles.reveal, { opacity: reveal, transform: [{ translateY: reveal.interpolate({ inputRange: [0, 1], outputRange: [8, 0] }) }] }]}>
@@ -76,7 +76,8 @@ function PlaybackLevelMeter({ playing, reducedMotion }: { playing: boolean; redu
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.backgroundPrimary },
   header: { paddingHorizontal: space.xl, paddingTop: space.lg, paddingBottom: space.md, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', gap: space.md },
-  headerCopy: { flex: 1 },
+  headerCopy: { flex: 1, minWidth: 0, flexShrink: 1 },
+  headerAction: { minWidth: 56, minHeight: 44, flexShrink: 0, paddingHorizontal: space.xs, alignItems: 'flex-end', justifyContent: 'center' },
   kicker: { ...type.caption, color: colors.accentPrimary, letterSpacing: 1.1 },
   title: { ...type.display, color: colors.textPrimary, fontSize: 30, lineHeight: 36, marginTop: 4 },
   description: { ...type.body, color: colors.textSecondary, marginTop: 4, maxWidth: 300 },

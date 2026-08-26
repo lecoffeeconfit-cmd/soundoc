@@ -1,5 +1,6 @@
 import * as SQLite from 'expo-sqlite';
 import type { Bookmark, DocumentChapter, DocumentTextChunk, Folder, Highlight, LargeDocumentInfo, LargeDocumentStatus, LibraryItem, Playlist } from '../types';
+import { sectionKindForId, summarizeSectionText } from './sectionIntelligence';
 
 const db = SQLite.openDatabaseSync('soundoc.db');
 
@@ -169,10 +170,11 @@ export function getDocumentText(documentId: string) {
 }
 
 export function listDocumentChapters(documentId: string): DocumentChapter[] {
-  return db.getAllSync<{ document_id: string; section_id: string; section_title: string; sequence: number }>(`SELECT document_id, section_id, section_title, MIN(sequence) AS sequence
-    FROM document_chunks WHERE document_id = ? AND section_id IS NOT NULL AND section_title IS NOT NULL
-    GROUP BY document_id, section_id, section_title ORDER BY sequence ASC`, documentId)
-    .map((row) => ({ documentId: row.document_id, id: row.section_id, title: row.section_title, sequence: Number(row.sequence) }));
+  return db.getAllSync<{ document_id: string; section_id: string; section_title: string; sequence: number; first_text?: string }>(`SELECT chunks.document_id, chunks.section_id, chunks.section_title, MIN(chunks.sequence) AS sequence,
+    (SELECT first_chunk.text FROM document_chunks first_chunk WHERE first_chunk.document_id = chunks.document_id AND first_chunk.section_id = chunks.section_id ORDER BY first_chunk.sequence ASC LIMIT 1) AS first_text
+    FROM document_chunks chunks WHERE chunks.document_id = ? AND chunks.section_id IS NOT NULL AND chunks.section_title IS NOT NULL
+    GROUP BY chunks.document_id, chunks.section_id, chunks.section_title ORDER BY sequence ASC`, documentId)
+    .map((row) => ({ documentId: row.document_id, id: row.section_id, title: row.section_title, sequence: Number(row.sequence), kind: sectionKindForId(row.section_id), summary: summarizeSectionText(row.first_text ?? '', row.section_title) }));
 }
 
 export function listPlaylists(): Playlist[] {

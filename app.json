@@ -18,7 +18,7 @@
         "UIStatusBarStyle": "UIStatusBarStyleLightContent"
       },
       "bundleIdentifier": "com.lecoffeeconfit.soundoc",
-      "buildNumber": "8"
+      "buildNumber": "12"
     },
     "plugins": [
       [
@@ -36,6 +36,38 @@
         }
       ],
       [
+        "expo-sharing",
+        {
+          "ios": {
+            "enabled": true,
+            "appGroupId": "group.com.lecoffeeconfit.soundoc",
+            "activationRule": {
+              "supportsWebPageWithMaxCount": 1,
+              "supportsWebUrlWithMaxCount": 1,
+              "supportsText": true,
+              "supportsFileWithMaxCount": 1,
+              "supportsAttachmentsWithMaxCount": 1,
+              "supportsImageWithMaxCount": 1
+            }
+          },
+          "android": {
+            "enabled": true,
+            "singleShareMimeTypes": [
+              "text/plain",
+              "text/uri-list",
+              "text/markdown",
+              "text/html",
+              "text/rtf",
+              "application/rtf",
+              "application/pdf",
+              "application/epub+zip",
+              "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+              "image/*"
+            ]
+          }
+        }
+      ],
+      [
         "expo-splash-screen",
         {
           "backgroundColor": "#111417",
@@ -48,7 +80,14 @@
           }
         }
       ],
-      "expo-mail-composer"
+      "expo-mail-composer",
+      [
+        "expo-notifications",
+        {
+          "color": "#FF7138",
+          "defaultChannel": "soundoc-reading"
+        }
+      ]
     ],
     "android": {
       "package": "com.lecoffeeconfit.soundoc",

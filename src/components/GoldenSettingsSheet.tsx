@@ -24,7 +24,7 @@ export function GoldenSettingsSheet({ visible, enabled, preferences, profile, ac
 
   return <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
     <SafeAreaView style={styles.screen}>
-      <View style={styles.header}><View style={styles.headerCopy}><Text style={styles.title}>Your Golden Switch Profile</Text><Text style={styles.subtitle}>Golden Switch learns the listening style you prefer while keeping Soundoc’s recommended settings as its foundation.</Text></View><Pressable onPress={onClose} accessibilityRole="button" accessibilityLabel="Close Golden Switch Profile"><Text style={styles.done}>Done</Text></Pressable></View>
+      <View style={styles.header}><View style={styles.headerCopy}><Text style={styles.title}>Your Golden Switch Profile</Text><Text style={styles.subtitle}>Golden Switch learns the listening style you prefer while keeping Soundoc’s recommended settings as its foundation.</Text></View><Pressable style={styles.headerAction} onPress={onClose} accessibilityRole="button" accessibilityLabel="Close Golden Switch Profile"><Text style={styles.done}>Done</Text></Pressable></View>
       {!enabled && <View style={styles.offNotice}><Text style={styles.noticeIcon}>✦</Text><Text style={styles.noticeText}>Golden Switch is currently off. These are the settings it will use when enabled.</Text></View>}
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <Text style={styles.sectionLabel}>CURRENT GOLDEN SWITCH SOUND</Text>
@@ -71,17 +71,18 @@ function historyIcon(kind: string) { return kind === 'good' ? '✓' : kind === '
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.backgroundPrimary, paddingHorizontal: space.xl },
   header: { paddingTop: space.md, paddingBottom: space.lg, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', gap: space.md },
-  headerCopy: { flex: 1 },
+  headerCopy: { flex: 1, minWidth: 0, flexShrink: 1 },
   title: { ...type.display, color: colors.textPrimary, fontSize: 28 },
   subtitle: { ...type.caption, color: colors.textSecondary, marginTop: 5, maxWidth: 310, lineHeight: 18 },
-  done: { ...type.label, color: colors.accentPrimary, padding: space.xs },
+  headerAction: { minWidth: 56, minHeight: 44, flexShrink: 0, paddingHorizontal: space.xs, alignItems: 'flex-end', justifyContent: 'center' },
+  done: { ...type.label, color: colors.accentPrimary },
   content: { paddingBottom: space.xxxl, gap: space.md },
   offNotice: { padding: space.md, borderRadius: radius.medium, backgroundColor: colors.accentSoft, flexDirection: 'row', alignItems: 'center', gap: space.sm },
   noticeIcon: { color: colors.accentPrimary, fontSize: 18 },
   noticeText: { ...type.caption, color: colors.textSecondary, flex: 1, lineHeight: 18 },
   sectionLabel: { ...type.caption, color: colors.textTertiary, letterSpacing: 1, marginTop: space.xs },
   card: { borderRadius: radius.large, overflow: 'hidden', backgroundColor: colors.surfaceElevated, borderWidth: 1, borderColor: colors.borderSubtle },
-  settingRow: { minHeight: 54, paddingHorizontal: space.md, paddingVertical: space.sm, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.divider, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: space.md },
+  settingRow: { minHeight: 54, paddingHorizontal: space.md, paddingVertical: space.sm, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: 'rgba(255,255,255,0.085)', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: space.md },
   lastRow: { borderBottomWidth: 0 },
   settingLabel: { ...type.label, color: colors.textPrimary, flex: 1 },
   settingValue: { ...type.caption, color: colors.textSecondary, textAlign: 'right', flex: 1.3 },
