@@ -2,7 +2,7 @@ import type { SpeechPreferences, Voice } from '../types';
 import { GOLDEN_PRESET, getBestGoldenVoice, rankAvailableVoices } from './goldenListening';
 
 export type GoldenParameter = 'rate' | 'pitch' | 'sentencePause' | 'paragraphPause' | 'voice';
-export type GoldenFeedbackReason = 'tooFast' | 'tooSlow' | 'voice' | 'pauses' | 'tooShort' | 'tooLong' | 'somethingElse';
+export type GoldenFeedbackReason = 'tooFast' | 'tooSlow' | 'voice' | 'pauses' | 'tooShort' | 'tooLong' | 'hardToUnderstand' | 'staticOrFuzzy' | 'somethingElse';
 export type GoldenFeedbackKind = 'good' | 'notQuite';
 export type GoldenParameterState = { offset: number; positiveEvidence: number; negativeEvidence: number; preferredDirection: -1 | 0 | 1; confidence: number; lastDirectionTested?: -1 | 1; stepSize: number };
 export type GoldenActiveExperiment = { id: string; parameter: GoldenParameter; direction?: -1 | 1; previousValue: number | string; testValue: number | string; previousOffset?: number; testOffset?: number; startedAt: string };
@@ -172,8 +172,8 @@ export function goldenMeaningfulDifferences(baseline: GoldenRuntimeValues, effec
 function updateOverallConfidence(profile: GoldenAdaptiveProfile) { profile.overallConfidence = (profile.rate.confidence + profile.pitch.confidence + profile.sentencePause.confidence + profile.paragraphPause.confidence + profile.voice.confidence) / 5; }
 function nextFeedbackDelay(profile: GoldenAdaptiveProfile) { return Math.min(45 * 60 * 1000, (profile.feedbackCount < 3 ? 8 : 15) * 60 * 1000); }
 function queueForReason(reason: GoldenFeedbackReason | undefined, profile: GoldenAdaptiveProfile, now: number): GoldenQueuedExperiment | undefined {
-  const parameter: GoldenParameter = reason === 'voice' ? 'voice' : reason === 'pauses' || reason === 'tooShort' || reason === 'tooLong' ? (reason === 'tooShort' || reason === 'tooLong' ? 'sentencePause' : 'paragraphPause') : 'rate';
-  const requestedDirection: -1 | 1 | undefined = reason === 'tooFast' || reason === 'tooLong' ? -1 : reason === 'tooSlow' || reason === 'tooShort' ? 1 : undefined;
+  const parameter: GoldenParameter = reason === 'voice' || reason === 'staticOrFuzzy' ? 'voice' : reason === 'pauses' || reason === 'tooShort' || reason === 'tooLong' ? (reason === 'tooShort' || reason === 'tooLong' ? 'sentencePause' : 'paragraphPause') : 'rate';
+  const requestedDirection: -1 | 1 | undefined = reason === 'tooFast' || reason === 'tooLong' || reason === 'hardToUnderstand' ? -1 : reason === 'tooSlow' || reason === 'tooShort' ? 1 : undefined;
   const state = profile[parameter];
   const fallback = state.preferredDirection === 0 ? 1 : state.preferredDirection;
   return { parameter, direction: requestedDirection ?? fallback, notBefore: new Date(now + MIN_EXPERIMENT_DELAY_MS).toISOString() };
@@ -220,13 +220,18 @@ export function refineGoldenFeedback(profileInput: GoldenAdaptiveProfile, reason
 
 function experimentStep(parameter: Exclude<GoldenParameter, 'voice'>, confidence: number) { const base = BASE_STEPS[parameter]; return base * (confidence >= 0.72 ? 0.34 : confidence >= 0.32 ? 0.67 : 1); }
 
-export function startGoldenExperiment(profileInput: GoldenAdaptiveProfile, baseline: GoldenRuntimeValues, voices: readonly Voice[], language: string, now = Date.now()): GoldenAdaptiveProfile {
+export function startGoldenExperiment(profileInput: GoldenAdaptiveProfile, baseline: GoldenRuntimeValues, voices: readonly Voice[], language: string, now = Date.now(), options: { allowVoiceExperiment?: boolean } = {}): GoldenAdaptiveProfile {
   const profile = validateGoldenAdaptiveProfile(profileInput) ?? createGoldenAdaptiveProfile();
   if (profile.activeExperiment || profile.feedbackCount < 1 || (profile.nextExperimentAt && Date.parse(profile.nextExperimentAt) > now)) return profile;
   const queued = profile.queuedExperiment;
   if (queued && Date.parse(queued.notBefore) > now) return profile;
   let parameter: GoldenParameter = queued?.parameter ?? [...(['rate', 'sentencePause', 'paragraphPause', 'pitch'] as const)].sort((a, b) => profile[a].confidence - profile[b].confidence)[0];
   if (!queued && profile.feedbackCount >= 6 && profile.feedbackCount % 6 === 0 && suitableVoiceCandidates(voices, language).length > 1) parameter = 'voice';
+  if (parameter === 'voice' && options.allowVoiceExperiment === false) {
+    profile.queuedExperiment = undefined;
+    profile.nextExperimentAt = new Date(now + nextFeedbackDelay(profile)).toISOString();
+    return profile;
+  }
   if (parameter === 'voice') {
     const candidates = suitableVoiceCandidates(voices, language); const current = profile.preferredVoiceId ?? baseline.voiceIdentifier ?? getBestGoldenVoice(voices, language)?.identifier; const index = candidates.findIndex((voice) => voice.identifier === current); const candidate = candidates[(index + 1 + candidates.length) % candidates.length] ?? candidates.find((voice) => voice.identifier !== current);
     if (!candidate || candidate.identifier === current) return { ...profile, nextExperimentAt: new Date(now + nextFeedbackDelay(profile)).toISOString() };

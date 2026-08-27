@@ -111,7 +111,7 @@ export function SubscriptionStatusCard({ readyListeningSeconds = 0 }: { readyLis
     const expiration = formatDate(subscription.subscriptionExpirationDate);
     const state = subscription.isCancellationPending && expiration ? `Active until ${expiration}` : subscription.willRenew && expiration ? `Renews ${expiration}` : 'Active';
     return <Pressable onPress={subscription.openPaywall} style={({ pressed }) => [styles.card, styles.activeCard, pressed && styles.pressed]} accessibilityRole="button" accessibilityLabel={`Soundoc Pro, ${state}`} accessibilityHint="Opens subscription details">
-      <View style={styles.header}><View style={styles.activeCopy}><Text style={styles.kicker}>SOUNDOC PRO</Text><Text style={styles.title}>Active</Text></View><ActiveProLogo reduceMotion={reduceMotion} /></View><Text style={styles.detail}>{state}</Text>
+      <View style={styles.header}><View style={styles.activeCopy}><Text style={styles.kicker}>SOUNDOC PRO</Text><Text style={styles.title}>Active</Text><Text style={[styles.detail, styles.activeDetail]}>{state}</Text></View><ActiveProLogo reduceMotion={reduceMotion} /></View>
     </Pressable>;
   }
 
@@ -145,8 +145,9 @@ const styles = StyleSheet.create({
   card: { width: '100%', maxWidth: 620, alignSelf: 'center', marginTop: space.lg, padding: space.md, borderRadius: radius.large, backgroundColor: '#1B1F20', borderWidth: 1, borderColor: 'rgba(216,180,90,0.30)', borderTopColor: 'rgba(244,215,124,0.38)', borderBottomColor: 'rgba(0,0,0,0.68)', shadowColor: '#000', shadowOpacity: 0.26, shadowOffset: { width: 0, height: 7 }, shadowRadius: 14, elevation: 5 },
   trialCard: { paddingVertical: space.sm },
   trialCardNearEnd: { borderColor: 'rgba(216,180,90,0.42)', borderTopColor: 'rgba(244,215,124,0.46)' },
-  activeCard: { backgroundColor: colors.surfaceElevated, overflow: 'hidden', borderColor: 'rgba(216,180,90,0.42)', borderTopColor: 'rgba(244,215,124,0.48)', borderBottomColor: 'rgba(142,110,37,0.76)' },
+  activeCard: { paddingVertical: space.sm, backgroundColor: colors.surfaceElevated, overflow: 'hidden', borderColor: 'rgba(216,180,90,0.42)', borderTopColor: 'rgba(244,215,124,0.48)', borderBottomColor: 'rgba(142,110,37,0.76)' },
   activeCopy: { flex: 1, minWidth: 0 },
+  activeDetail: { marginTop: space.xs, lineHeight: 17 },
   activeLogoWrap: { width: 72, height: 72, marginLeft: space.xs, alignItems: 'center', justifyContent: 'center' },
   activeLogoHalo: { position: 'absolute', width: 68, height: 68, borderRadius: 34, backgroundColor: colors.recommendedGoldGlow, borderWidth: 0, shadowColor: colors.recommendedGold, shadowOpacity: 0.28, shadowOffset: { width: 0, height: 0 }, shadowRadius: 16, elevation: 4 },
   activeLogoFrame: { width: 58, height: 58, padding: 4, borderRadius: 18, backgroundColor: colors.backgroundSecondary, borderWidth: 1, borderColor: 'rgba(244,215,124,0.76)', shadowColor: colors.recommendedGoldDark, shadowOpacity: 0.28, shadowOffset: { width: 0, height: 3 }, shadowRadius: 6, elevation: 3 },

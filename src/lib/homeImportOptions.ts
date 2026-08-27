@@ -1,5 +1,6 @@
 export const HOME_IMPORT_LAYOUT = {
   minHeight: 72,
+  height: 72,
   verticalPadding: 10,
   horizontalPadding: 16,
   gap: 12,

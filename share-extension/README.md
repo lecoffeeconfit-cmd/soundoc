@@ -30,6 +30,10 @@ than starting playback unexpectedly. Local files are copied into Soundoc's
 managed storage before the native share payload is cleared; provider-owned
 originals are not deleted.
 
+Google AI and search shares commonly provide only the search URL, not the answer
+currently rendered on screen. To listen to that answer, select and share its
+text, or copy it and use Soundoc's paste action after the URL-share warning.
+
 ## Build requirement
 
 The Share Sheet registration is native, so changes to `app.json` do not affect

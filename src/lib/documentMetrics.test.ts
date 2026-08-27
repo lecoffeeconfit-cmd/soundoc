@@ -1,5 +1,5 @@
 import { classifyDocumentLength, estimateDocumentPages, formatDocumentPages, hasExactPageCount } from './documentMetrics';
-import { routeDirectDocument } from './importRouting';
+import { isGoogleSearchUrl, routeDirectDocument } from './importRouting';
 
 export function runDocumentImportFixtures() {
   const failures: string[] = [];
@@ -14,5 +14,9 @@ export function runDocumentImportFixtures() {
   expect(routeDirectDocument(new URL('https://example.com/download'), 'application/epub+zip')?.fileName === 'download.epub', 'content type should route extensionless book links');
   expect(routeDirectDocument(new URL('https://example.com/download'), 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'attachment; filename="semester-notes.docx"')?.fileName === 'semester-notes.docx', 'disposition names should preserve direct DOCX imports');
   expect(!routeDirectDocument(new URL('https://example.com/article'), 'text/html'), 'HTML pages should remain article imports');
+  expect(isGoogleSearchUrl(new URL('https://www.google.com/search?q=honda+accord')), 'Google search URLs should be identified for text fallback');
+  expect(isGoogleSearchUrl(new URL('https://google.co.uk/search?q=honda+accord')), 'country Google search URLs should be identified for text fallback');
+  expect(!isGoogleSearchUrl(new URL('https://www.google.com/search')), 'Google URLs without a query should remain ordinary links');
+  expect(!isGoogleSearchUrl(new URL('https://example.com/search?q=honda+accord')), 'non-Google search URLs should remain ordinary links');
   if (failures.length) throw new Error(failures.join('\n'));
 }

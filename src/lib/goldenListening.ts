@@ -8,13 +8,13 @@ import type { SpeechPreferences, Voice } from '../types';
 export const GOLDEN_PRESET = {
   id: 'recommended',
   name: 'Golden — Recommended',
-  description: 'Optimized for clear, natural, podcast-style listening',
-  rate: 0.96,
+  description: 'Clear, calm, natural listening with room between ideas',
+  rate: 0.9,
   pitch: 1,
-  volume: 0.97,
-  sentencePauseMs: 220,
-  paragraphPauseMs: 520,
-  headingPauseMs: 750,
+  volume: 1,
+  sentencePauseMs: 280,
+  paragraphPauseMs: 650,
+  headingPauseMs: 850,
   readingRules: {
     skipSiteBoilerplate: true,
     skipNavigationAndAds: true,
@@ -25,6 +25,26 @@ export const GOLDEN_PRESET = {
     skipConsecutiveDuplicates: true,
     skipReferenceSection: true,
     preserveHeadings: true,
+    preserveMeaningfulNumbers: true,
+    preserveStatistics: true,
+    preserveMeasurements: true,
+  },
+} as const;
+
+/** A clarity-first variation of Golden for dense, unfamiliar, or difficult material. */
+export const CLEAR_MODE_PRESET = {
+  id: 'clear',
+  name: 'Clear Mode',
+  description: 'The easiest-to-follow Golden sound: calm, natural, and extra clear',
+  rate: 0.84,
+  pitch: 1,
+  volume: 1,
+  sentencePauseMs: 360,
+  paragraphPauseMs: 800,
+  headingPauseMs: 1050,
+  readingRules: {
+    ...GOLDEN_PRESET.readingRules,
+    preserveDefinitions: true,
     preserveMeaningfulNumbers: true,
     preserveStatistics: true,
     preserveMeasurements: true,
@@ -68,32 +88,40 @@ export function getBestGoldenVoice(voices: readonly Voice[], language: string, p
 }
 
 /** All settings Golden owns. Keeping this centralized makes activation deterministic. */
-export function applyGoldenPreset(): Partial<SpeechPreferences> {
+export function applyGoldenPreset(options: { clearMode?: boolean } = {}): Partial<SpeechPreferences> {
+  const preset = options.clearMode ? CLEAR_MODE_PRESET : GOLDEN_PRESET;
   return {
     modeId: 'recommended',
     presetId: 'recommended',
     recommendedListening: true,
-    rate: GOLDEN_PRESET.rate,
-    pitch: GOLDEN_PRESET.pitch,
-    volume: GOLDEN_PRESET.volume,
-    sentencePauseMs: GOLDEN_PRESET.sentencePauseMs,
-    paragraphPauseMs: GOLDEN_PRESET.paragraphPauseMs,
-    headingPauseMs: GOLDEN_PRESET.headingPauseMs,
+    clearModeEnabled: options.clearMode === true,
+    rate: preset.rate,
+    pitch: preset.pitch,
+    volume: preset.volume,
+    sentencePauseMs: preset.sentencePauseMs,
+    paragraphPauseMs: preset.paragraphPauseMs,
+    headingPauseMs: preset.headingPauseMs,
     adaptiveListeningEnabled: false,
     podcastModeEnabled: false,
     smartFilteringEnabled: true,
-    ...GOLDEN_PRESET.readingRules,
+    ...preset.readingRules,
   };
+}
+
+export function applyClearMode(): Partial<SpeechPreferences> {
+  return applyGoldenPreset({ clearMode: true });
 }
 
 export function isGoldenPresetActive(preferences: Pick<SpeechPreferences, 'recommendedListening' | 'modeId'>) {
   return preferences.recommendedListening === true && (preferences.modeId === 'recommended' || preferences.modeId === 'smart');
 }
 
-/** A manual edit to any audible/structural Golden control turns the master preset off. */
+/** A manual edit to any audible/structural Golden control turns the master preset off.
+ * Voice is intentionally excluded: Golden adapts around a voice the user chose. */
 export function isGoldenControlledChange(settings: Partial<SpeechPreferences>) {
   return [
-    'voiceIdentifier', 'rate', 'pitch', 'volume', 'sentencePauseMs', 'paragraphPauseMs', 'headingPauseMs',
+    'rate', 'pitch', 'volume', 'sentencePauseMs', 'paragraphPauseMs', 'headingPauseMs',
+    'clearModeEnabled',
     'adaptiveListeningEnabled', 'podcastModeEnabled', 'smartFilteringEnabled', 'skipUrls', 'skipCitations',
     'skipHeadings', 'skipConsecutiveDuplicates', 'skipLongNumbersAndCodes', 'skipReferenceSection',
     'skipSiteBoilerplate', 'skipNavigationAndAds', 'skipSharingControls', 'skipRelatedStories',

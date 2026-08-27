@@ -7,14 +7,15 @@ import { applyGoldenPreset } from '../lib/goldenListening';
 import { canUndoGoldenAdjustment, goldenLearningSummary, goldenMeaningfulDifferences, goldenParameterStatus, goldenProfileStatus, type GoldenAdaptiveProfile } from '../lib/goldenPersonalization';
 import type { LibraryItem, SpeechPreferences, Voice } from '../types';
 
-type Props = { visible: boolean; enabled: boolean; preferences: SpeechPreferences; profile?: GoldenAdaptiveProfile | null; activeItem?: LibraryItem | null; voices: Voice[]; onClose: () => void; onReset: () => void; onUndo: () => void };
+type Props = { visible: boolean; enabled: boolean; preferences: SpeechPreferences; profile?: GoldenAdaptiveProfile | null; activeItem?: LibraryItem | null; voices: Voice[]; onClose: () => void; onReset: () => void; onUndo: () => void; onSetClearMode: (enabled: boolean) => void };
 
-export function GoldenSettingsSheet({ visible, enabled, preferences, profile, activeItem, voices, onClose, onReset, onUndo }: Props) {
+export function GoldenSettingsSheet({ visible, enabled, preferences, profile, activeItem, voices, onClose, onReset, onUndo, onSetClearMode }: Props) {
   const [showExactValues, setShowExactValues] = useState(false);
   const [showCompare, setShowCompare] = useState(false);
   const goldenPreferences = enabled ? preferences : { ...preferences, ...applyGoldenPreset() };
+  const clearMode = enabled && preferences.clearModeEnabled === true;
   const effective = resolveRuntimeSpeechPreferences(goldenPreferences, activeItem, voices, profile);
-  const baseline = resolveRuntimeSpeechPreferences({ ...goldenPreferences, ...applyGoldenPreset() }, activeItem, voices, null);
+  const baseline = resolveRuntimeSpeechPreferences({ ...goldenPreferences, ...applyGoldenPreset({ clearMode }) }, activeItem, voices, null);
   const voice = voices.find((candidate) => candidate.identifier === effective.voiceIdentifier);
   const baselineVoice = voices.find((candidate) => candidate.identifier === baseline.voiceIdentifier);
   const differences = goldenMeaningfulDifferences(baseline, effective);
@@ -24,11 +25,14 @@ export function GoldenSettingsSheet({ visible, enabled, preferences, profile, ac
 
   return <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
     <SafeAreaView style={styles.screen}>
-      <View style={styles.header}><View style={styles.headerCopy}><Text style={styles.title}>Your Golden Switch Profile</Text><Text style={styles.subtitle}>Golden Switch learns the listening style you prefer while keeping Soundoc’s recommended settings as its foundation.</Text></View><Pressable style={styles.headerAction} onPress={onClose} accessibilityRole="button" accessibilityLabel="Close Golden Switch Profile"><Text style={styles.done}>Done</Text></Pressable></View>
+      <View style={styles.header}><View style={styles.headerCopy}><Text style={styles.title}>Your Golden Switch Profile</Text><Text style={styles.subtitle}>Golden Switch is an automatic listening preset: it picks a compatible voice, a comfortable pace, and enough space between ideas to keep reading easy to follow.</Text></View><Pressable style={styles.headerAction} onPress={onClose} accessibilityRole="button" accessibilityLabel="Close Golden Switch Profile"><Text style={styles.done}>Done</Text></Pressable></View>
       {!enabled && <View style={styles.offNotice}><Text style={styles.noticeIcon}>✦</Text><Text style={styles.noticeText}>Golden Switch is currently off. These are the settings it will use when enabled.</Text></View>}
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+        <Text style={styles.sectionLabel}>CLARITY PRESET</Text>
+        <Pressable style={({ pressed }) => [styles.clearModeCard, clearMode && styles.clearModeCardSelected, pressed && styles.pressed]} onPress={() => onSetClearMode(!clearMode)} accessibilityRole="switch" accessibilityState={{ checked: clearMode }} accessibilityLabel="Clear Mode" accessibilityHint="Uses a calmer pace, full volume, and extra space between ideas"><View style={[styles.clearModeIcon, clearMode && styles.clearModeIconSelected]}><Text style={[styles.clearModeIconText, clearMode && styles.clearModeIconTextSelected]}>◉</Text></View><View style={styles.clearModeCopy}><Text style={[styles.clearModeTitle, clearMode && styles.clearModeTitleSelected]}>Clear Mode</Text><Text style={styles.clearModeText}>Easiest to follow for dense or unfamiliar material. Keeps the best compatible voice, slows the pace gently, and adds breathing room without making it sound robotic.</Text></View><Text style={[styles.clearModeState, clearMode && styles.clearModeStateSelected]}>{clearMode ? 'ON' : 'USE'}</Text></Pressable>
         <Text style={styles.sectionLabel}>CURRENT GOLDEN SWITCH SOUND</Text>
         <View style={styles.card}>
+          <SettingRow label="Clarity preset" value={clearMode ? 'Clear Mode' : 'Golden Default'} />
           <SettingRow label="Voice" value={voice?.name ?? 'Automatic · system fallback'} />
           <SettingRow label="Pace" value={`${paceDescription(effective.rate, baseline.rate)} · ${effective.rate.toFixed(2)}×`} />
           <SettingRow label="Pitch" value={`${pitchDescription(effective.pitch, baseline.pitch)} · ${effective.pitch.toFixed(2)}`} />
@@ -42,13 +46,13 @@ export function GoldenSettingsSheet({ visible, enabled, preferences, profile, ac
         {!!profile?.history.length && <><Text style={styles.sectionLabel}>LEARNING HISTORY</Text><View style={styles.historyCard}>{profile.history.slice(-5).reverse().map((entry, index) => <Text key={`${entry.at}-${index}`} style={styles.historyLine}>{historyIcon(entry.kind)} {entry.detail}</Text>)}</View></>}
 
         <Pressable style={({ pressed }) => [styles.disclosure, pressed && styles.pressed]} onPress={() => setShowCompare((current) => !current)} accessibilityRole="button" accessibilityState={{ expanded: showCompare }} accessibilityLabel="Compare with Golden Switch Default"><View style={styles.disclosureCopy}><Text style={styles.disclosureTitle}>Compare with Golden Switch Default</Text><Text style={styles.disclosureHint}>{differences.length ? 'See only the settings Golden Switch has changed.' : 'No meaningful personalization yet.'}</Text></View><Text style={styles.chevron}>{showCompare ? '⌃' : '⌄'}</Text></Pressable>
-        {showCompare && <View style={styles.compareCard}>{differences.length ? differences.map((difference) => <CompareRow key={difference.parameter} label={difference.label} baseline={difference.parameter === 'voice' ? baselineVoice?.name ?? 'System' : formatValue(difference.parameter, difference.baseline)} current={difference.parameter === 'voice' ? voice?.name ?? 'System' : formatValue(difference.parameter, difference.current)} />) : <Text style={styles.learningLine}>You’re currently using Soundoc’s recommended Golden Switch settings. Keep listening and rating Golden Switch and it will gently personalize them for you.</Text>}</View>}
+        {showCompare && <View style={styles.compareCard}>{differences.length ? differences.map((difference) => <CompareRow key={difference.parameter} label={difference.label} baseline={difference.parameter === 'voice' ? baselineVoice?.name ?? 'System' : formatValue(difference.parameter, difference.baseline)} current={difference.parameter === 'voice' ? voice?.name ?? 'System' : formatValue(difference.parameter, difference.current)} />) : <Text style={styles.learningLine}>You’re currently using Soundoc’s {clearMode ? 'Clear Mode' : 'recommended Golden Switch'} settings. Keep listening and rating Golden Switch and it will gently personalize them for you.</Text>}</View>}
 
         <Pressable style={({ pressed }) => [styles.disclosure, pressed && styles.pressed]} onPress={() => setShowExactValues((current) => !current)} accessibilityRole="button" accessibilityState={{ expanded: showExactValues }} accessibilityLabel="Show exact values"><View style={styles.disclosureCopy}><Text style={styles.disclosureTitle}>{showExactValues ? 'Hide exact values' : 'Show exact values'}</Text><Text style={styles.disclosureHint}>Technical values from the effective Golden Switch configuration</Text></View><Text style={styles.chevron}>{showExactValues ? '⌃' : '⌄'}</Text></Pressable>
         {showExactValues && <ExactValues preferences={effective} voice={voice} profile={profile} />}
 
         {canUndoGoldenAdjustment(profile) && <Pressable style={({ pressed }) => [styles.undo, pressed && styles.pressed]} onPress={onUndo} accessibilityRole="button" accessibilityLabel="Undo Last Golden Switch Adjustment"><Text style={styles.undoIcon}>↶</Text><View style={styles.resetCopy}><Text style={styles.undoTitle}>Undo Last Adjustment</Text><Text style={styles.resetHint}>Return to the previous best-known Golden Switch sound</Text></View></Pressable>}
-        <View style={styles.howCard}><Text style={styles.howTitle}>How Golden Switch gets better</Text><Text style={styles.howText}>Golden Switch starts with Soundoc’s recommended settings. You listen normally, occasionally choose Good or Not Quite, and Golden Switch tests one tiny supported adjustment at a time. It keeps a best-known profile and safely returns to it when an experiment does not work.</Text></View>
+        <View style={styles.howCard}><Text style={styles.howTitle}>How Golden Switch gets better</Text><Text style={styles.howText}>Golden Switch starts with a clear, natural baseline. You listen normally, occasionally choose Clear, Hard to understand, or Something else felt off, and Golden Switch tests one tiny supported adjustment at a time. It keeps a best-known profile and safely returns to it when an experiment does not work.</Text></View>
         <Pressable style={({ pressed }) => [styles.reset, pressed && styles.pressed]} onPress={reset} accessibilityRole="button" accessibilityLabel="Reset Golden Switch Profile"><Text style={styles.resetIcon}>↺</Text><View style={styles.resetCopy}><Text style={styles.resetTitle}>Reset Golden Switch Profile</Text><Text style={styles.resetHint}>Remove learned preferences and restore the baseline</Text></View><Text style={styles.chevron}>›</Text></Pressable>
       </ScrollView>
     </SafeAreaView>
@@ -59,7 +63,7 @@ function ExactValues({ preferences, voice, profile }: { preferences: SpeechPrefe
   return <View style={styles.exactCard}><Text style={styles.exactTitle}>Exact values</Text><ValueRow label="Voice name" value={voice?.name ?? 'Automatic system voice'} /><ValueRow label="Voice identifier" value={voice?.identifier ?? 'System selected'} /><ValueRow label="Voice confidence" value={goldenParameterStatus(profile, 'voice')} /><ValueRow label="Speech rate" value={`${preferences.rate.toFixed(2)}× · ${goldenParameterStatus(profile, 'rate')}`} /><ValueRow label="Pitch" value={`${preferences.pitch.toFixed(2)} · ${goldenParameterStatus(profile, 'pitch')}`} /><ValueRow label="Volume" value={preferences.volume.toFixed(2)} /><ValueRow label="Sentence pause" value={`${preferences.sentencePauseMs} ms · ${goldenParameterStatus(profile, 'sentencePause')}`} /><ValueRow label="Paragraph pause" value={`${preferences.paragraphPauseMs} ms · ${goldenParameterStatus(profile, 'paragraphPause')}`} /><ValueRow label="Heading pause" value={`${preferences.headingPauseMs ?? 0} ms`} /></View>;
 }
 
-function SettingRow({ label, value, last = false }: { label: string; value: string; last?: boolean }) { return <View style={[styles.settingRow, last && styles.lastRow]}><Text style={styles.settingLabel}>{label}</Text><Text style={styles.settingValue} numberOfLines={2}>{value}</Text></View>; }
+function SettingRow({ label, value, last = false }: { label: string; value: string; last?: boolean }) { return <View style={[styles.settingRow, last && styles.lastRow]}><Text style={[styles.settingLabel, { minWidth: 0 }]}>{label}</Text><Text style={[styles.settingValue, { minWidth: 0 }]}>{value}</Text></View>; }
 function ValueRow({ label, value }: { label: string; value: string }) { return <View style={styles.valueRow}><Text style={styles.valueLabel}>{label}</Text><Text style={styles.value}>{value}</Text></View>; }
 function CompareRow({ label, baseline, current }: { label: string; baseline: string; current: string }) { return <View style={styles.compareRow}><Text style={styles.valueLabel}>{label}</Text><Text style={styles.compareValue}>{baseline} → {current}</Text></View>; }
 function paceDescription(value: number, baseline: number) { return value > baseline + 0.005 ? 'Slightly Faster' : value < baseline - 0.005 ? 'Slightly Slower' : 'Balanced'; }
@@ -81,6 +85,18 @@ const styles = StyleSheet.create({
   noticeIcon: { color: colors.accentPrimary, fontSize: 18 },
   noticeText: { ...type.caption, color: colors.textSecondary, flex: 1, lineHeight: 18 },
   sectionLabel: { ...type.caption, color: colors.textTertiary, letterSpacing: 1, marginTop: space.xs },
+  clearModeCard: { minHeight: 104, padding: space.md, borderRadius: radius.medium, backgroundColor: colors.surfaceElevated, borderWidth: 1, borderColor: colors.borderSubtle, flexDirection: 'row', alignItems: 'center', gap: space.sm },
+  clearModeCardSelected: { backgroundColor: 'rgba(255,149,94,0.10)', borderColor: colors.accentPrimary },
+  clearModeIcon: { width: 36, height: 36, borderRadius: radius.small, backgroundColor: colors.surfaceInset, alignItems: 'center', justifyContent: 'center' },
+  clearModeIconSelected: { backgroundColor: colors.accentPrimary },
+  clearModeIconText: { color: colors.accentPrimary, fontSize: 18 },
+  clearModeIconTextSelected: { color: '#FFFFFF' },
+  clearModeCopy: { flex: 1, minWidth: 0 },
+  clearModeTitle: { ...type.label, color: colors.textPrimary },
+  clearModeTitleSelected: { color: colors.accentPrimary },
+  clearModeText: { ...type.caption, color: colors.textSecondary, lineHeight: 17, marginTop: 3 },
+  clearModeState: { ...type.caption, color: colors.textTertiary, letterSpacing: 0.7 },
+  clearModeStateSelected: { color: colors.accentPrimary },
   card: { borderRadius: radius.large, overflow: 'hidden', backgroundColor: colors.surfaceElevated, borderWidth: 1, borderColor: colors.borderSubtle },
   settingRow: { minHeight: 54, paddingHorizontal: space.md, paddingVertical: space.sm, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: 'rgba(255,255,255,0.085)', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: space.md },
   lastRow: { borderBottomWidth: 0 },

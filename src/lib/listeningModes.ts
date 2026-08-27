@@ -1,5 +1,5 @@
 import type { LibraryItem, ListeningModeId, SmartClassification, SpeechPreferences, Voice } from '../types';
-import { getBestGoldenVoice, GOLDEN_PRESET } from './goldenListening';
+import { CLEAR_MODE_PRESET, getBestGoldenVoice, GOLDEN_PRESET } from './goldenListening';
 import { applyGoldenPersonalization, type GoldenAdaptiveProfile } from './goldenPersonalization';
 
 /** The mode catalog is the single source of truth for values shown in Settings and used by speech. */
@@ -23,6 +23,7 @@ const profile = (value: Omit<ListeningModeProfile, 'icon'> & { icon?: string }):
 
 export const LISTENING_MODE_PROFILES: readonly ListeningModeProfile[] = [
   profile({ id: 'recommended', name: GOLDEN_PRESET.name, description: GOLDEN_PRESET.description, useLabel: 'Best overall', icon: '✦', rate: GOLDEN_PRESET.rate, pitch: GOLDEN_PRESET.pitch, volume: GOLDEN_PRESET.volume, sentencePauseMs: GOLDEN_PRESET.sentencePauseMs, paragraphPauseMs: GOLDEN_PRESET.paragraphPauseMs, headingPauseMs: GOLDEN_PRESET.headingPauseMs, readingRules: { ...GOLDEN_PRESET.readingRules } }),
+  profile({ id: 'clear', name: CLEAR_MODE_PRESET.name, description: CLEAR_MODE_PRESET.description, useLabel: 'Easiest to follow', icon: '◉', rate: CLEAR_MODE_PRESET.rate, pitch: CLEAR_MODE_PRESET.pitch, volume: CLEAR_MODE_PRESET.volume, sentencePauseMs: CLEAR_MODE_PRESET.sentencePauseMs, paragraphPauseMs: CLEAR_MODE_PRESET.paragraphPauseMs, headingPauseMs: CLEAR_MODE_PRESET.headingPauseMs, readingRules: { ...CLEAR_MODE_PRESET.readingRules } }),
   profile({ id: 'natural', name: 'Natural', description: 'Balanced everyday listening with minimal processing.', useLabel: 'Everyday', icon: '◉', rate: 1, pitch: 1, volume: 1, sentencePauseMs: 220, paragraphPauseMs: 550, headingPauseMs: 750, readingRules: { skipSiteBoilerplate: true, skipNavigationAndAds: true, skipUrls: true, skipConsecutiveDuplicates: true, preserveHeadings: true } }),
   profile({ id: 'study', name: 'Study & Learn', description: 'Deliberate pacing for textbooks, research, and material you want to remember.', useLabel: 'Learning', icon: '▤', rate: 0.88, pitch: 1, volume: 1, sentencePauseMs: 380, paragraphPauseMs: 850, headingPauseMs: 1050, readingRules: { skipSiteBoilerplate: true, skipNavigationAndAds: true, skipCitations: true, skipLongNumbersAndCodes: true, skipDatabaseIdentifiers: true, skipUrls: true, skipConsecutiveDuplicates: true, skipReferenceSection: true, preserveHeadings: true, preserveDefinitions: true, preserveStatistics: true, preserveMeasurements: true, preserveMeaningfulNumbers: true } }),
   profile({ id: 'quickPreview', name: 'Quick Preview', description: 'Rapidly scan an article or document before deciding whether to read it fully.', useLabel: 'Previewing', icon: '»', rate: 1.55, pitch: 1, volume: 1, sentencePauseMs: 80, paragraphPauseMs: 220, headingPauseMs: 400, readingRules: { skipSiteBoilerplate: true, skipNavigationAndAds: true, skipCitations: true, skipLongNumbersAndCodes: true, skipDatabaseIdentifiers: true, skipUrls: true, skipConsecutiveDuplicates: true, skipReferenceSection: true, preserveHeadings: true } }),
@@ -47,7 +48,7 @@ export function normalizeListeningModeId(id?: ListeningModeId | string): Listeni
     case 'storyteller': return 'storytelling';
     case 'sleepReading': return 'sleep';
     case 'highClarity': return 'slowClear';
-    case 'recommended': case 'natural': case 'study': case 'quickPreview': case 'deepFocus': case 'news': case 'storytelling': case 'slowClear': case 'relaxed': case 'sleep': case 'custom': return id;
+    case 'recommended': case 'clear': case 'natural': case 'study': case 'quickPreview': case 'deepFocus': case 'news': case 'storytelling': case 'slowClear': case 'relaxed': case 'sleep': case 'custom': return id;
     default: return 'recommended';
   }
 }
@@ -91,26 +92,37 @@ export function smartProfileFor(item?: Pick<LibraryItem, 'type' | 'title' | 'tex
 }
 
 export function resolveSpeechPreferences(preferences: SpeechPreferences, item?: LibraryItem | null): SpeechPreferences {
-  const id = preferences.recommendedListening ? 'recommended' : normalizeListeningModeId(preferences.modeId);
+  const golden = preferences.recommendedListening === true;
+  const id = golden ? (preferences.clearModeEnabled ? 'clear' : 'recommended') : normalizeListeningModeId(preferences.modeId);
   const resolved = modeProfileFor(id, preferences);
-  const golden = id === 'recommended';
   const podcastPacing = !golden && preferences.podcastModeEnabled ? { sentencePauseMs: Math.max(resolved.sentencePauseMs, 280), paragraphPauseMs: Math.max(resolved.paragraphPauseMs, 700), headingPauseMs: Math.max(resolved.headingPauseMs, 900) } : {};
   const filtering = preferences.smartFilteringEnabled === false
     ? { skipSiteBoilerplate: false, skipNavigationAndAds: false, skipSharingControls: false, skipRelatedStories: false, skipDatabaseIdentifiers: false, skipUrls: false, skipCitations: false, skipHeadings: false, skipConsecutiveDuplicates: false, skipLongNumbersAndCodes: false, skipReferenceSection: false }
     : { ...resolved.readingRules, skipSiteBoilerplate: true, skipUrls: true, skipCitations: true, skipLongNumbersAndCodes: true, skipReferenceSection: true };
-  return { ...preferences, modeId: id, smartClassification: golden ? classifyDocument(item) : preferences.smartClassification, rate: resolved.rate, pitch: resolved.pitch, volume: resolved.volume, sentencePauseMs: podcastPacing.sentencePauseMs ?? resolved.sentencePauseMs, paragraphPauseMs: podcastPacing.paragraphPauseMs ?? resolved.paragraphPauseMs, headingPauseMs: podcastPacing.headingPauseMs ?? resolved.headingPauseMs, ...filtering, recommendedListening: golden, podcastModeEnabled: golden ? false : preferences.podcastModeEnabled, adaptiveListeningEnabled: golden ? false : preferences.adaptiveListeningEnabled };
+  return { ...preferences, modeId: golden ? 'recommended' : id, smartClassification: golden ? classifyDocument(item) : preferences.smartClassification, rate: resolved.rate, pitch: resolved.pitch, volume: resolved.volume, sentencePauseMs: podcastPacing.sentencePauseMs ?? resolved.sentencePauseMs, paragraphPauseMs: podcastPacing.paragraphPauseMs ?? resolved.paragraphPauseMs, headingPauseMs: podcastPacing.headingPauseMs ?? resolved.headingPauseMs, ...filtering, recommendedListening: golden, podcastModeEnabled: golden ? false : preferences.podcastModeEnabled, adaptiveListeningEnabled: golden ? false : preferences.adaptiveListeningEnabled };
 }
 
 /** Resolves the values that the current speech session will use, including Golden's installed voice. */
 export function resolveRuntimeSpeechPreferences(preferences: SpeechPreferences, item: LibraryItem | null | undefined, voices: readonly Voice[], profile?: GoldenAdaptiveProfile | null): SpeechPreferences {
   const resolved = resolveSpeechPreferences(preferences, item);
-  if (!resolved.recommendedListening) return resolved;
-  const voice = getBestGoldenVoice(voices, item?.language ?? resolved.voiceLocale ?? 'en-US', preferences.voiceIdentifier ?? item?.selectedVoice);
-  return applyGoldenPersonalization({ ...resolved, voiceIdentifier: voice?.identifier }, profile, voices, item?.language ?? resolved.voiceLocale ?? 'en-US');
+  const language = item?.language ?? resolved.voiceLocale ?? 'en-US';
+  if (!resolved.recommendedListening && !resolved.clearVoiceEnabled) return resolved;
+  const manuallySelectedVoice = preferences.voiceIdentifier;
+  const bestCompatibleVoice = getBestGoldenVoice(voices, language, manuallySelectedVoice ?? item?.selectedVoice);
+  const automaticVoice = bestCompatibleVoice?.identifier;
+  const clarityLayer = resolved.clearVoiceEnabled && !resolved.recommendedListening ? { pitch: 1, volume: 1 } : {};
+  const goldenBaseline = { ...resolved, ...clarityLayer, voiceIdentifier: manuallySelectedVoice ?? automaticVoice };
+  const golden = resolved.recommendedListening ? applyGoldenPersonalization(goldenBaseline, profile, voices, language) : goldenBaseline;
+
+  // A chosen voice is always respected. Golden can adapt its numeric settings around
+  // that voice, while Clear Voice uses the best Enhanced voice only in Automatic mode.
+  if (manuallySelectedVoice) return { ...golden, voiceIdentifier: manuallySelectedVoice };
+  return resolved.clearVoiceEnabled ? { ...golden, voiceIdentifier: automaticVoice } : golden;
 }
 
 export function modeSummary(preferences: SpeechPreferences, item?: LibraryItem | null) {
   if (preferences.podcastModeEnabled) return 'Podcast';
+  if (preferences.recommendedListening && preferences.clearModeEnabled) return CLEAR_MODE_PRESET.name;
   const id = preferences.recommendedListening ? 'recommended' : normalizeListeningModeId(preferences.modeId);
   return modeProfileFor(id, preferences).name;
 }

@@ -21,10 +21,10 @@ export function NotificationSettingsSection({ preferences, permission, onChange,
   const [picker, setPicker] = useState<Picker>(null);
   const enabled = preferences.enabled && permission.granted;
   const statusCopy = permission.status === 'denied'
-    ? 'Notifications are blocked. You can turn them back on in iPhone Settings.'
+    ? 'Turn on reminders in iPhone Settings.'
     : permission.status === 'provisional'
-      ? 'Soundoc can add quiet reminders to Notification Center.'
-      : 'Soundoc keeps reminders on this device. No account or server is needed.';
+      ? 'Quiet reminders in Notification Center.'
+      : 'On-device reminders. No account needed.';
 
   const toggleMaster = (value: boolean) => {
     if (!value) { onChange({ enabled: false }); return; }
@@ -35,7 +35,7 @@ export function NotificationSettingsSection({ preferences, permission, onChange,
   return <SectionShell title="Notifications">
     <View style={styles.introRow}>
       <View style={styles.icon}><Text style={styles.iconText}>⌁</Text></View>
-      <View style={styles.copy}><Text style={styles.title}>Helpful reminders</Text><Text style={styles.detail}>{statusCopy}</Text></View>
+      <View style={styles.copy}><Text style={styles.title} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>Reminders</Text><Text style={styles.detail}>{statusCopy}</Text></View>
       <SoundocToggle compact value={enabled} onValueChange={toggleMaster} accessibilityLabel="Helpful notifications" accessibilityHint={enabled ? 'Turns Soundoc reminders off' : 'Turns on quiet Soundoc reminders'} />
     </View>
     {permission.status === 'denied' && <Pressable onPress={onOpenSystemSettings} style={({ pressed }) => [styles.settingsButton, pressed && styles.pressed]} accessibilityRole="button" accessibilityLabel="Open notification settings"><Text style={styles.settingsButtonText}>Open notification settings</Text><Text style={styles.chevron}>›</Text></Pressable>}
@@ -71,7 +71,7 @@ function PickerModal({ picker, preferences, onClose, onChange }: { picker: Picke
   if (!picker) return null;
   const isTime = picker === 'continue-time' || picker === 'weekly-time';
   const title = picker === 'continue-time' ? 'Reminder time' : picker === 'weekly-time' ? 'Recap time' : picker === 'cadence' ? 'Reminder cadence' : 'Recap day';
-  return <Modal visible animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}><SafeAreaView style={styles.modal}><View style={styles.modalHeader}><View><Text style={styles.modalTitle}>{title}</Text><Text style={styles.modalSubtitle}>Choose what feels natural for your routine.</Text></View><Pressable onPress={onClose} accessibilityRole="button"><Text style={styles.done}>Done</Text></Pressable></View><ScrollView contentContainerStyle={styles.options}>
+  return <Modal visible animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}><SafeAreaView style={styles.modal}><View style={styles.modalHeader}><View style={styles.modalHeaderCopy}><Text style={styles.modalTitle}>{title}</Text><Text style={styles.modalSubtitle}>Choose what feels natural for your routine.</Text></View><Pressable onPress={onClose} accessibilityRole="button"><Text style={styles.done}>Done</Text></Pressable></View><ScrollView contentContainerStyle={styles.options}>
     {isTime && timeOptions.map((time) => { const selected = (picker === 'continue-time' ? preferences.continueListeningTime : preferences.weeklyRecapTime).hour === time.hour && (picker === 'continue-time' ? preferences.continueListeningTime : preferences.weeklyRecapTime).minute === time.minute; return <PickerOption key={`${time.hour}:${time.minute}`} label={formatNotificationTime(time)} selected={selected} onPress={() => { onChange(picker === 'continue-time' ? { continueListeningTime: time } : { weeklyRecapTime: time }); onClose(); }} />; })}
     {picker === 'cadence' && <><PickerOption label="Every day" selected={preferences.continueListeningCadence === 'daily'} onPress={() => { onChange({ continueListeningCadence: 'daily' }); onClose(); }} /><PickerOption label="Weekdays" selected={preferences.continueListeningCadence === 'weekdays'} onPress={() => { onChange({ continueListeningCadence: 'weekdays' }); onClose(); }} /></>}
     {picker === 'weekly-day' && weekdays.map((day) => <PickerOption key={day.value} label={day.label} selected={preferences.weeklyRecapWeekday === day.value} onPress={() => { onChange({ weeklyRecapWeekday: day.value }); onClose(); }} />)}
@@ -103,7 +103,8 @@ const styles = StyleSheet.create({
   pressed: { opacity: 0.82 },
   modal: { flex: 1, backgroundColor: colors.backgroundPrimary, paddingHorizontal: space.lg },
   modalHeader: { paddingTop: space.md, paddingBottom: space.lg, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', gap: space.md },
-  modalTitle: { ...type.display, color: colors.textPrimary, fontSize: 28 },
+  modalHeaderCopy: { flex: 1, minWidth: 0, flexShrink: 1 },
+  modalTitle: { ...type.display, color: colors.textPrimary, fontSize: 28, flexShrink: 1 },
   modalSubtitle: { ...type.caption, color: colors.textSecondary, marginTop: 5, maxWidth: 260 },
   done: { ...type.label, color: colors.accentPrimary, padding: space.xs },
   options: { paddingBottom: space.xxxl, gap: space.sm },

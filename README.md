@@ -36,4 +36,6 @@ PDF extraction is best-effort by design: password-protected, image-only, and unu
 
 Photo and camera OCR use a native Expo module backed by device recognition. Test that feature and Share to Soundoc in a development or production build, not Expo Go. Share Sheet registration is configured through the `expo-sharing` plugin; see [share-extension/README.md](share-extension/README.md) for the App Group and rebuild requirements.
 
+When sharing a Google AI result, share the selected answer text or copy the answer and use Soundoc's **Paste copied answer** action. Google normally shares the search URL, which does not contain the answer text Soundoc needs to read.
+
 PowerPoint, Pages, Excel, DRM-protected ebooks, paywalled/login-only articles, social feeds, YouTube transcripts, RSS/email sources, and imported audio remain deliberately outside the local document-reader scope for this release.

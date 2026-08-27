@@ -1,4 +1,4 @@
-import { applyGoldenPreset, getBestGoldenVoice, GOLDEN_PRESET, isGoldenControlledChange, rankAvailableVoices } from './goldenListening';
+import { applyClearMode, applyGoldenPreset, CLEAR_MODE_PRESET, getBestGoldenVoice, GOLDEN_PRESET, isGoldenControlledChange, rankAvailableVoices } from './goldenListening';
 import { resolveRuntimeSpeechPreferences } from './listeningModes';
 import { applyGoldenPersonalization, createGoldenAdaptiveProfile, recordGoldenFeedback, startGoldenExperiment, undoLastGoldenAdjustment, validateGoldenAdaptiveProfile } from './goldenPersonalization';
 import { processSpeechText } from './speechText';
@@ -26,10 +26,20 @@ export function runGoldenListeningFixtures() {
   if (getBestGoldenVoice(voices, 'de-DE') !== undefined) throw new Error('missing-language fallback should defer to the system voice');
   const runtime = resolveRuntimeSpeechPreferences(goldenPreferences, { language: 'en-US', selectedVoice: 'en-compact' } as LibraryItem, voices);
   if (runtime.voiceIdentifier !== 'en-enhanced' || runtime.rate !== GOLDEN_PRESET.rate || runtime.sentencePauseMs !== GOLDEN_PRESET.sentencePauseMs) throw new Error('runtime Golden resolver drifted from the active baseline');
+  const clearVoice = resolveRuntimeSpeechPreferences({ ...goldenPreferences, modeId: 'custom', presetId: 'custom', recommendedListening: false, clearVoiceEnabled: true, voiceIdentifier: 'en-compact', rate: 1.18, pitch: 0.72, volume: 0.6, sentencePauseMs: 333 }, { language: 'en-US', selectedVoice: 'en-compact' } as LibraryItem, voices);
+  if (clearVoice.voiceIdentifier !== 'en-compact' || clearVoice.rate !== 1.18 || clearVoice.pitch !== 1 || clearVoice.volume !== 1 || clearVoice.sentencePauseMs !== 333) throw new Error('Clear Voice should preserve the chosen voice and pacing while normalizing clarity controls');
+  const automaticClearVoice = resolveRuntimeSpeechPreferences({ ...goldenPreferences, modeId: 'natural', presetId: 'natural', recommendedListening: false, clearVoiceEnabled: true, voiceIdentifier: undefined }, { language: 'en-US' } as LibraryItem, voices);
+  if (automaticClearVoice.voiceIdentifier !== 'en-enhanced') throw new Error('Clear Voice Automatic fallback did not choose the best voice');
+  const chosenGoldenVoice = resolveRuntimeSpeechPreferences({ ...goldenPreferences, voiceIdentifier: 'en-compact' }, { language: 'en-US', selectedVoice: 'en-compact' } as LibraryItem, voices);
+  if (chosenGoldenVoice.voiceIdentifier !== 'en-compact') throw new Error('Golden did not respect the chosen voice');
+  const voiceLockedProfile = startGoldenExperiment({ ...createGoldenAdaptiveProfile(), feedbackCount: 6, nextExperimentAt: new Date(0).toISOString() }, { ...goldenPreferences, voiceIdentifier: 'en-compact' }, voices, 'en-US', 10_000, { allowVoiceExperiment: false });
+  if (voiceLockedProfile.activeExperiment?.parameter === 'voice') throw new Error('Golden started a hidden voice experiment against a chosen voice');
 
   const applied = applyGoldenPreset();
-  if (applied.rate !== 0.96 || applied.pitch !== 1 || applied.volume !== 0.97 || applied.sentencePauseMs !== 220 || applied.paragraphPauseMs !== 520 || applied.headingPauseMs !== 750) throw new Error('Golden constants were not applied');
-  if (!isGoldenControlledChange({ voiceIdentifier: 'en-enhanced' }) || !isGoldenControlledChange({ sentencePauseMs: 300 }) || isGoldenControlledChange({ favoriteVoiceIds: ['en-enhanced'] })) throw new Error('Golden manual-change detection is incorrect');
+  if (applied.rate !== 0.9 || applied.pitch !== 1 || applied.volume !== 1 || applied.sentencePauseMs !== 280 || applied.paragraphPauseMs !== 650 || applied.headingPauseMs !== 850) throw new Error('Golden constants were not applied');
+  const clear = applyClearMode();
+  if (clear.clearModeEnabled !== true || clear.rate !== CLEAR_MODE_PRESET.rate || clear.sentencePauseMs !== CLEAR_MODE_PRESET.sentencePauseMs || clear.paragraphPauseMs !== CLEAR_MODE_PRESET.paragraphPauseMs) throw new Error('Clear Mode constants were not applied');
+  if (isGoldenControlledChange({ voiceIdentifier: 'en-enhanced' }) || !isGoldenControlledChange({ sentencePauseMs: 300 }) || isGoldenControlledChange({ favoriteVoiceIds: ['en-enhanced'] })) throw new Error('Golden manual-change detection is incorrect');
 
   const baseline = { ...goldenPreferences, voiceIdentifier: 'en-enhanced' };
   const freshProfile = createGoldenAdaptiveProfile();
@@ -47,6 +57,10 @@ export function runGoldenListeningFixtures() {
   if (undone.lastAdjustment || undone.rejectedAdjustmentCount !== 1 || undone.rate.offset !== 0 && undone.pitch.offset !== 0 && undone.sentencePause.offset !== 0 && undone.paragraphPause.offset !== 0) throw new Error('Golden undo did not restore the best-known profile');
   const negative = recordGoldenFeedback({ ...freshProfile, feedbackCount: 1, nextExperimentAt: new Date(0).toISOString() }, 'notQuite', 30_000, 'tooFast');
   if (negative.queuedExperiment?.parameter !== 'rate' || negative.queuedExperiment.direction !== -1) throw new Error('Golden direct negative feedback did not queue a slower rate experiment');
+  const clarity = recordGoldenFeedback({ ...freshProfile, feedbackCount: 1, nextExperimentAt: new Date(0).toISOString() }, 'notQuite', 31_000, 'hardToUnderstand');
+  if (clarity.queuedExperiment?.parameter !== 'rate' || clarity.queuedExperiment.direction !== -1) throw new Error('Golden clarity feedback did not queue a slower rate experiment');
+  const fuzzy = recordGoldenFeedback({ ...freshProfile, feedbackCount: 1, nextExperimentAt: new Date(0).toISOString() }, 'notQuite', 32_000, 'staticOrFuzzy');
+  if (fuzzy.queuedExperiment?.parameter !== 'voice') throw new Error('Golden fuzzy feedback did not queue a voice experiment');
   if (validateGoldenAdaptiveProfile({ version: 1, rate: { offset: Number.NaN } }) !== null) throw new Error('corrupt Golden profile was not rejected');
 
   const chunks = processSpeechText('# Clear heading\nFirst sentence. Second sentence.\n\nNext paragraph.\n\n- First item\n- Second item', goldenPreferences, 'en-US');

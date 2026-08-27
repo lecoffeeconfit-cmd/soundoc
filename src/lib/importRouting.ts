@@ -43,3 +43,10 @@ export function routeDirectDocument(url: URL, contentType?: string | null, conte
 export function isHtmlResponse(contentType?: string | null) {
   return ['text/html', 'application/xhtml+xml'].includes(contentType?.split(';')[0].trim().toLowerCase() ?? '');
 }
+
+/** Google shares search-result URLs, not the answer text rendered in its AI chat. */
+export function isGoogleSearchUrl(url: URL) {
+  const host = url.hostname.toLowerCase().replace(/^www\./, '').replace(/\.$/, '');
+  const isGoogleHost = host === 'google.com' || /^google\.(?:[a-z]{2}|com\.[a-z]{2}|co\.[a-z]{2})$/.test(host);
+  return isGoogleHost && /^\/search\/?$/i.test(url.pathname) && Boolean(url.searchParams.get('q')?.trim());
+}

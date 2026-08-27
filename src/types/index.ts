@@ -114,7 +114,7 @@ export type Folder = { id: string; name: string; createdAt: number; updatedAt: n
 export type Voice = { identifier: string; name: string; language: string; quality?: string };
 
 /** Canonical mode IDs plus legacy aliases kept so existing saved preferences continue to load. */
-export type ListeningModeId = 'recommended' | 'natural' | 'study' | 'quickPreview' | 'deepFocus' | 'news' | 'storytelling' | 'slowClear' | 'relaxed' | 'sleep' | 'custom' | 'smart' | 'studyFocus' | 'fastScan' | 'deepNarrator' | 'newsreader' | 'storyteller' | 'sleepReading' | 'highClarity';
+export type ListeningModeId = 'recommended' | 'natural' | 'study' | 'quickPreview' | 'deepFocus' | 'news' | 'storytelling' | 'slowClear' | 'relaxed' | 'sleep' | 'custom' | 'clear' | 'smart' | 'studyFocus' | 'fastScan' | 'deepNarrator' | 'newsreader' | 'storyteller' | 'sleepReading' | 'highClarity';
 export type SmartClassification = 'scientific' | 'technical' | 'educational' | 'news' | 'story' | 'legal' | 'general' | 'shortForm';
 
 export type PronunciationRule = {
@@ -180,6 +180,10 @@ export type SpeechPreferences = {
   preserveDatesAndStatistics?: boolean;
   /** Applies the local, coordinated Soundoc Recommended profile without erasing custom values. */
   recommendedListening?: boolean;
+  /** Uses Golden's calmer, extra-clear starting profile while keeping the Golden voice selection. */
+  clearModeEnabled?: boolean;
+  /** Uses the clearest compatible high-quality system voice without changing pacing. */
+  clearVoiceEnabled?: boolean;
   /** Used by the speech-only chunk pipeline for longer pauses after headings. */
   headingPauseMs?: number;
   /** Removes a References/Bibliography tail from speech only. */

@@ -36,8 +36,8 @@ export function runHomeImportOptionFixtures() {
     throw new Error('Web Article or Link must remain the only primary import card');
   }
 
-  if (HOME_IMPORT_LAYOUT.minHeight < 44 || HOME_IMPORT_LAYOUT.minHeight > 72) {
-    throw new Error('Compact Home cards must remain comfortable tap targets while reducing the previous 80 point height');
+  if (HOME_IMPORT_LAYOUT.minHeight < 44 || HOME_IMPORT_LAYOUT.minHeight > 72 || HOME_IMPORT_LAYOUT.height !== HOME_IMPORT_LAYOUT.minHeight) {
+    throw new Error('Home import cards must share one comfortable fixed height');
   }
   if (HOME_IMPORT_LAYOUT.gap < 12 || HOME_IMPORT_LAYOUT.gap > 14) {
     throw new Error('Home import spacing must stay within the approved 12–14 point rhythm');

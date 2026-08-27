@@ -3,15 +3,15 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { colors, radius, space, type } from '../lib/theme';
 import type { GoldenFeedbackReason } from '../lib/goldenPersonalization';
 
-type Props = { visible: boolean; attached?: boolean; onGood: () => void; onNotQuite: () => void; onReason: (reason: GoldenFeedbackReason) => void; onDismiss: () => void };
+type Props = { visible: boolean; attached?: boolean; onGood: () => void; onHardToUnderstand: () => void; onNotQuite: () => void; onReason: (reason: GoldenFeedbackReason) => void; onDismiss: () => void };
 
-export function GoldenFeedbackCard({ visible, attached = false, onGood, onNotQuite, onReason, onDismiss }: Props) {
+export function GoldenFeedbackCard({ visible, attached = false, onGood, onHardToUnderstand, onNotQuite, onReason, onDismiss }: Props) {
   const [showReasons, setShowReasons] = useState(false);
   if (!visible) return null;
   const notQuite = () => { onNotQuite(); setShowReasons(true); };
   return <View style={[styles.card, attached && styles.attachedCard]}>
-    <View style={[styles.header, attached && styles.attachedHeader]}><View style={[styles.icon, attached && styles.attachedIcon]}><Text style={styles.iconText}>✦</Text></View><View style={styles.copy}><Text style={[styles.title, attached && styles.attachedTitle]}>How does Golden Switch sound?</Text><Text style={[styles.detail, attached && styles.attachedDetail]}>Your feedback helps Golden Switch fine-tune your listening.</Text></View><Pressable onPress={onDismiss} hitSlop={8} accessibilityRole="button" accessibilityLabel="Dismiss Golden Switch feedback"><Text style={styles.dismiss}>×</Text></Pressable></View>
-    {!showReasons ? <View style={[styles.actions, attached && styles.attachedActions]}><Pressable onPress={onGood} style={[styles.action, styles.good, attached && styles.attachedAction]} accessibilityRole="button"><FeedbackIcon kind="good" /><Text style={[styles.actionText, attached && styles.attachedActionText]}>Good</Text></Pressable><Pressable onPress={notQuite} style={[styles.action, styles.notQuite, attached && styles.attachedAction]} accessibilityRole="button"><FeedbackIcon kind="adjust" /><Text style={[styles.actionText, attached && styles.attachedActionText]}>Not Quite</Text></Pressable></View> : <View style={styles.reasonBlock}><Text style={styles.reasonTitle}>What felt off? <Text style={styles.optional}>(optional)</Text></Text><View style={styles.reasonGrid}><ReasonButton label="Too Fast" onPress={() => onReason('tooFast')} /><ReasonButton label="Too Slow" onPress={() => onReason('tooSlow')} /><ReasonButton label="Voice" onPress={() => onReason('voice')} /><ReasonButton label="Pauses" onPress={() => onReason('pauses')} /><ReasonButton label="Something Else" onPress={() => onReason('somethingElse')} /><ReasonButton label="Skip" onPress={onDismiss} /></View></View>}
+    <View style={[styles.header, attached && styles.attachedHeader]}><View style={[styles.icon, attached && styles.attachedIcon]}><Text style={styles.iconText}>✦</Text></View><View style={styles.copy}><Text style={[styles.title, attached && styles.attachedTitle]}>How does Golden Switch sound?</Text><Text style={[styles.detail, attached && styles.attachedDetail]}>Was it clear and easy to follow? Your feedback helps Golden Switch fine-tune your listening.</Text></View><Pressable onPress={onDismiss} hitSlop={8} accessibilityRole="button" accessibilityLabel="Dismiss Golden Switch feedback"><Text style={styles.dismiss}>×</Text></Pressable></View>
+    {!showReasons ? <View style={[styles.actions, attached && styles.attachedActions]}><View style={styles.primaryActions}><Pressable onPress={onGood} style={[styles.action, styles.good, attached && styles.attachedAction]} accessibilityRole="button" accessibilityLabel="Golden Switch sounded clear"><FeedbackIcon kind="good" /><Text style={[styles.actionText, attached && styles.attachedActionText]}>Clear</Text></Pressable><Pressable onPress={onHardToUnderstand} style={[styles.action, styles.hardToUnderstand, attached && styles.attachedAction]} accessibilityRole="button" accessibilityLabel="Golden Switch was hard to understand"><FeedbackIcon kind="adjust" /><Text style={[styles.actionText, attached && styles.attachedActionText]}>Hard to understand</Text></Pressable></View><Pressable onPress={notQuite} style={[styles.secondaryAction, styles.notQuite, attached && styles.attachedAction]} accessibilityRole="button" accessibilityLabel="Give other Golden Switch feedback"><Text style={[styles.actionText, attached && styles.attachedActionText]}>Something else felt off</Text></Pressable></View> : <View style={styles.reasonBlock}><Text style={styles.reasonTitle}>What felt off? <Text style={styles.optional}>(optional)</Text></Text><View style={styles.reasonGrid}><ReasonButton label="Hard to understand" onPress={() => onReason('hardToUnderstand')} /><ReasonButton label="Static / fuzzy" onPress={() => onReason('staticOrFuzzy')} /><ReasonButton label="Too Fast" onPress={() => onReason('tooFast')} /><ReasonButton label="Too Slow" onPress={() => onReason('tooSlow')} /><ReasonButton label="Voice" onPress={() => onReason('voice')} /><ReasonButton label="Pauses" onPress={() => onReason('pauses')} /><ReasonButton label="Something Else" onPress={() => onReason('somethingElse')} /><ReasonButton label="Skip" onPress={onDismiss} /></View></View>}
   </View>;
 }
 
@@ -27,15 +27,18 @@ const styles = StyleSheet.create({
   header: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
   icon: { width: 32, height: 32, borderRadius: radius.small, backgroundColor: 'rgba(216,180,90,0.14)', alignItems: 'center', justifyContent: 'center' },
   iconText: { color: colors.recommendedGoldBright, fontSize: 16 },
-  copy: { flex: 1 },
+  copy: { flex: 1, minWidth: 0 },
   title: { ...type.heading, color: colors.textPrimary },
   detail: { ...type.caption, color: colors.textSecondary, marginTop: 2 },
   dismiss: { color: colors.textTertiary, fontSize: 24, lineHeight: 24, padding: 2 },
-  actions: { flexDirection: 'row', gap: space.sm, marginTop: space.md },
-  action: { flex: 1, minHeight: 44, borderRadius: radius.small, alignItems: 'center', justifyContent: 'center', borderWidth: 1, flexDirection: 'row', gap: space.xs },
+  actions: { gap: space.sm, marginTop: space.md },
+  primaryActions: { flexDirection: 'row', gap: space.sm, minWidth: 0 },
+  action: { flex: 1, minWidth: 0, minHeight: 44, borderRadius: radius.small, alignItems: 'center', justifyContent: 'center', borderWidth: 1, flexDirection: 'row', gap: space.xs },
   good: { backgroundColor: 'rgba(98,199,139,0.12)', borderColor: 'rgba(98,199,139,0.72)' },
+  hardToUnderstand: { backgroundColor: 'rgba(255,149,94,0.10)', borderColor: 'rgba(255,149,94,0.48)' },
   notQuite: { backgroundColor: colors.surfaceInset, borderColor: colors.borderSubtle },
-  actionText: { ...type.label, color: colors.textPrimary },
+  secondaryAction: { minHeight: 40, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderRadius: radius.small },
+  actionText: { ...type.label, color: colors.textPrimary, flexShrink: 1 },
   checkIcon: { width: 17, height: 17, position: 'relative' },
   checkIconShort: { position: 'absolute', width: 6, height: 2, left: 2, top: 9, borderRadius: 2, backgroundColor: colors.success, transform: [{ rotate: '45deg' }] },
   checkIconLong: { position: 'absolute', width: 11, height: 2, left: 6, top: 7, borderRadius: 2, backgroundColor: colors.success, transform: [{ rotate: '-45deg' }] },

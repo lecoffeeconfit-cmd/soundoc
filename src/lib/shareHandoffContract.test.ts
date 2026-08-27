@@ -12,5 +12,7 @@ if (!appSource.includes('PENDING_SHARED_LINK_STORAGE_KEY') || !appSource.include
 if (!appSource.includes('AsyncStorage.setItem') || !appSource.includes('AsyncStorage.getItem') || !appSource.includes('AsyncStorage.removeItem')) throw new Error('Share draft persistence must be written, restored, and cleared');
 if (!appSource.includes('contentUri') || !appSource.includes('payload.value')) throw new Error('Malformed known file shares must receive terminal feedback');
 if (!appSource.includes('Sharing.clearSharedPayloads()')) throw new Error('Native payloads must be cleared only after share handoff handling');
+if (!appSource.includes('isGoogleSearchUrl')) throw new Error('Google search shares must be routed away from article extraction');
+if (!appSource.includes('Paste copied answer')) throw new Error('Google search shares must offer a clipboard text fallback');
 
 console.log('share handoff contract passed');
