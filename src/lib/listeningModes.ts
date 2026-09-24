@@ -102,7 +102,7 @@ export function resolveSpeechPreferences(preferences: SpeechPreferences, item?: 
   return { ...preferences, modeId: golden ? 'recommended' : id, smartClassification: golden ? classifyDocument(item) : preferences.smartClassification, rate: resolved.rate, pitch: resolved.pitch, volume: resolved.volume, sentencePauseMs: podcastPacing.sentencePauseMs ?? resolved.sentencePauseMs, paragraphPauseMs: podcastPacing.paragraphPauseMs ?? resolved.paragraphPauseMs, headingPauseMs: podcastPacing.headingPauseMs ?? resolved.headingPauseMs, ...filtering, recommendedListening: golden, podcastModeEnabled: golden ? false : preferences.podcastModeEnabled, adaptiveListeningEnabled: golden ? false : preferences.adaptiveListeningEnabled };
 }
 
-/** Resolves the values that the current speech session will use, including Golden's installed voice. */
+/** Resolves the values that the current speech session will use, including Golden's voice policy. */
 export function resolveRuntimeSpeechPreferences(preferences: SpeechPreferences, item: LibraryItem | null | undefined, voices: readonly Voice[], profile?: GoldenAdaptiveProfile | null): SpeechPreferences {
   const resolved = resolveSpeechPreferences(preferences, item);
   const language = item?.language ?? resolved.voiceLocale ?? 'en-US';
@@ -111,13 +111,18 @@ export function resolveRuntimeSpeechPreferences(preferences: SpeechPreferences, 
   const bestCompatibleVoice = getBestGoldenVoice(voices, language, manuallySelectedVoice ?? item?.selectedVoice);
   const automaticVoice = bestCompatibleVoice?.identifier;
   const clarityLayer = resolved.clearVoiceEnabled && !resolved.recommendedListening ? { pitch: 1, volume: 1 } : {};
-  const goldenBaseline = { ...resolved, ...clarityLayer, voiceIdentifier: manuallySelectedVoice ?? automaticVoice };
+  // Golden's automatic path deliberately leaves the voice unset. iOS then uses
+  // the same device-selected voice the user hears from the phone's own speech
+  // features. An explicit voice selection still wins, while Clear Voice keeps
+  // its existing Enhanced-voice fallback when Voice is set to Automatic.
+  const goldenBaseline = { ...resolved, ...clarityLayer, voiceIdentifier: manuallySelectedVoice ?? (resolved.recommendedListening ? undefined : automaticVoice) };
   const golden = resolved.recommendedListening ? applyGoldenPersonalization(goldenBaseline, profile, voices, language) : goldenBaseline;
 
-  // A chosen voice is always respected. Golden can adapt its numeric settings around
-  // that voice, while Clear Voice uses the best Enhanced voice only in Automatic mode.
+  // A chosen voice is always respected. Golden never overrides the OS-selected
+  // automatic voice with a learned or guessed voice because voice quality is the
+  // main clarity signal for this preset.
   if (manuallySelectedVoice) return { ...golden, voiceIdentifier: manuallySelectedVoice };
-  return resolved.clearVoiceEnabled ? { ...golden, voiceIdentifier: automaticVoice } : golden;
+  return resolved.recommendedListening ? { ...golden, voiceIdentifier: undefined } : { ...golden, voiceIdentifier: automaticVoice };
 }
 
 export function modeSummary(preferences: SpeechPreferences, item?: LibraryItem | null) {

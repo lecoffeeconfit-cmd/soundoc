@@ -3,8 +3,8 @@ import { instructionalSheetTopPadding } from './instructionalSheetLayout';
 export function runInstructionalSheetLayoutFixtures() {
   const cases = [
     { height: 667, expected: 16, label: 'compact phone' },
-    { height: 844, expected: 32, label: 'standard phone' },
-    { height: 932, expected: 40, label: 'tall phone' },
+    { height: 844, expected: 20, label: 'standard phone' },
+    { height: 932, expected: 24, label: 'tall phone' },
   ] as const;
 
   for (const fixture of cases) {

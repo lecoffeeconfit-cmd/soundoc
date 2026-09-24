@@ -6,11 +6,13 @@ const path = require('node:path');
 const root = path.resolve(__dirname, '..');
 const output = mkdtempSync(path.join(os.tmpdir(), 'soundoc-fixtures-'));
 const fixtures = [
+  'src/lib/documentIntelligence.test.ts',
   'src/lib/chapterDetection.test.ts',
   'src/lib/sectionIntelligence.test.ts',
   'src/lib/largeDocuments.chapter.test.ts',
   'src/lib/chapterPresentation.test.ts',
   'src/lib/chapterNavigation.test.ts',
+  'src/lib/listeningStudio.test.ts',
 ];
 const compiler = path.join(root, 'node_modules', '.bin', 'tsc');
 

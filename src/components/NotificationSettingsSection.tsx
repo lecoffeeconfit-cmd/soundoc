@@ -1,6 +1,7 @@
 import { useState } from 'react';
-import { Modal, Pressable, SafeAreaView, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SoundocToggle } from './SoundocToggle';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors, radius, space, type } from '../lib/theme';
 import { formatNotificationTime } from '../lib/notificationPreferences';
 import type { NotificationPermissionState, NotificationPreferences } from '../types/notifications';
@@ -21,7 +22,7 @@ export function NotificationSettingsSection({ preferences, permission, onChange,
   const [picker, setPicker] = useState<Picker>(null);
   const enabled = preferences.enabled && permission.granted;
   const statusCopy = permission.status === 'denied'
-    ? 'Turn on reminders in iPhone Settings.'
+    ? 'Turn on reminders in your device settings.'
     : permission.status === 'provisional'
       ? 'Quiet reminders in Notification Center.'
       : 'On-device reminders. No account needed.';

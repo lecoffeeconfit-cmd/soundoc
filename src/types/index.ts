@@ -107,7 +107,7 @@ export type DocumentTextChunk = {
 
 export type DocumentChapter = { documentId: string; id: string; title: string; sequence: number; kind?: SoundocSectionKind; summary?: string };
 
-export type Bookmark = { id: string; libraryItemId: string; sectionId?: string; paragraphIndex?: number; sentenceIndex: number; label?: string; note?: string; createdAt: number; updatedAt: number };
+export type Bookmark = { id: string; libraryItemId: string; sectionId?: string; paragraphIndex?: number; chunkIndex?: number; sentenceIndex: number; label?: string; note?: string; createdAt: number; updatedAt: number };
 export type Highlight = { id: string; libraryItemId: string; sectionId?: string; startOffset: number; endOffset: number; text: string; note?: string; createdAt: number; updatedAt: number };
 export type Folder = { id: string; name: string; createdAt: number; updatedAt: number };
 
@@ -194,7 +194,7 @@ export type SpeechPreferences = {
   listeningStudioEnabled?: boolean;
   /** Preserves the visual Studio preset selection alongside the canonical speech mode. */
   listeningStudioPreset?: 'podcast' | 'study' | 'quick-preview' | 'deep-focus' | 'relaxed' | 'custom';
-  /** Reserved for a future ambience engine; no audio is loaded by the current app. */
+  /** Selects the bundled local background sound used by Listening Studio. */
   ambienceType?: 'none' | 'rain' | 'cafe' | 'brown-noise' | 'white-noise' | 'fireplace' | 'nature';
   ambienceVolume?: number;
   /** Applies podcast-like pacing and section breathing room without changing the source text. */

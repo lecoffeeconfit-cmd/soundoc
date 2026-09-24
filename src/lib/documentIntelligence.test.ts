@@ -1,4 +1,4 @@
-import { academicText, adaptiveChange, answerFromPassages, compareOriginalAndSpoken, explainPassage, generateFlashcards, generateReviewQuestions, retrievePassages } from './documentIntelligence';
+import { academicText, adaptiveChange, answerFromPassages, compareOriginalAndSpoken, explainPassage, generateFlashcards, generateReviewQuestions, podcastScript, retrievePassages } from './documentIntelligence';
 
 const sections = [{ id: 'abstract', title: 'Abstract', order: 0, text: 'The study examined memory after sleep. Participants completed a recall task.' }, { id: 'results', title: 'Results', order: 1, text: 'The sleep group recalled more words than the control group. Limitations included a small sample.' }];
 
@@ -13,6 +13,8 @@ export function runDocumentIntelligenceFixtures() {
   if (!cards.length || !cards[0].sourceExcerpt) throw new Error('flashcard source missing');
   const review = generateReviewQuestions(text, sections);
   if (!review.length || !review[0].answer) throw new Error('review answer missing');
+  const podcast = podcastScript(text, sections);
+  if (!podcast.turns.length || podcast.isGenerative) throw new Error('local podcast generation failed');
   if (academicText(text, sections).length !== 2) throw new Error('academic section detection failed');
   const adaptive = adaptiveChange('Methods: participants completed a randomized controlled experiment with a dense statistical analysis.', { rate: 1, sentencePauseMs: 250, paragraphPauseMs: 600 });
   if (adaptive.rate >= 1 || adaptive.sentencePauseMs <= 250) throw new Error('adaptive pacing failed');

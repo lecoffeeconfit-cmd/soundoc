@@ -1,24 +1,27 @@
-import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors, radius, space, type } from '../lib/theme';
 import type { LegalDocument } from '../types/legal';
+
+const subscriptionStore = Platform.OS === 'android' ? 'Google Play' : 'Apple App Store';
+const subscriptionAccount = Platform.OS === 'android' ? 'Google Play account' : 'Apple ID';
 
 const privacySections = [
   ['Our approach', 'Soundoc is designed to work without an account. Your library, queue, listening position, settings, and imported text are stored locally on your device.'],
   ['Content you import', 'Text, document contents, bookmarks, and notes are not sent to a Soundoc server. When you import a public article link, your device requests that page directly from the original website so it can prepare a readable listening copy.'],
   ['Speech and recognition', 'Soundoc uses voices available on your device. Photo and camera text recognition is processed on-device by the installed recognition component. Soundoc does not use your imported content to train advertising or voice models.'],
-  ['Information we do not collect', 'Soundoc does not require your name, email address, or an account. When you send feedback, it includes the message and the optional technical details shown in the form, but never the contents of your imported documents. Soundoc does not include behavioural advertising or third-party analytics.'],
+  ['Information we do not collect', 'Soundoc does not require your name, email address, or an account. When you send feedback, it includes the message and the optional technical details shown in the form, but never the contents of your imported documents. Soundoc does not include behavioural advertising or third-party analytics. If you purchase Soundoc Pro, the relevant app store and RevenueCat process purchase, subscription, and entitlement information so the app can grant access, restore purchases, and manage renewals.'],
   ['Your choices', 'You can delete saved items and clear your queue in the app at any time. Removing Soundoc from your device removes its app-contained data, subject to your device backup settings.'],
-  ['Changes and contact', 'If this policy changes materially, the updated version will be available here with a new effective date. For privacy questions, use the contact method in Soundoc’s App Store listing.'],
+  ['Changes and contact', 'If this policy changes materially, the updated version will be available here with a new effective date. For privacy questions, use the contact method in Soundoc’s store listing.'],
 ];
 const termsSections = [
   ['Using Soundoc', 'Soundoc is a private listening tool for content you have the right to access. You are responsible for the text, files, and links you import and for complying with applicable copyright, website, and subscription terms.'],
   ['The service', 'Soundoc provides local text preparation and device speech features. Some website, document, voice, and device capabilities may be unavailable or work differently depending on the source, your device, or operating-system settings.'],
-  ['Soundoc Pro subscriptions', 'Soundoc Pro is an auto-renewing subscription purchased through the Apple App Store. Prices, billing periods, and any introductory offer are shown before purchase in the app using current App Store information. Your Apple ID is charged when you confirm purchase. The subscription automatically renews unless you cancel at least 24 hours before the end of the current period. You can restore eligible purchases and manage or cancel a subscription through your App Store subscription settings.'],
+  ['Soundoc Pro subscriptions', `Soundoc Pro is an auto-renewing subscription purchased through ${subscriptionStore}. Prices, billing periods, and any introductory offer are shown before purchase in the app using current ${subscriptionStore} information. Your ${subscriptionAccount} is charged when you confirm purchase. The subscription automatically renews unless you cancel at least 24 hours before the end of the current period. You can restore eligible purchases and manage or cancel a subscription through your ${subscriptionStore} subscription settings.`],
   ['Your content', 'You retain ownership of content you import. Soundoc does not claim ownership of your documents or text. You may remove local items at any time.'],
   ['Acceptable use', 'Do not use Soundoc to bypass paywalls, digital rights management, access controls, or other restrictions. Do not use it in a way that infringes another person’s rights or violates applicable law.'],
   ['Disclaimers', 'Soundoc is provided on an “as available” basis. Listening-time estimates, article cleanup, text extraction, and speech pronunciation may not always be exact. Nothing in Soundoc is legal, medical, financial, or professional advice.'],
-  ['Changes and contact', 'We may update these terms as Soundoc evolves. Continued use after an update means you accept the revised terms. For questions, use the contact method in Soundoc’s App Store listing.'],
+  ['Changes and contact', 'We may update these terms as Soundoc evolves. Continued use after an update means you accept the revised terms. For questions, use the contact method in Soundoc’s store listing.'],
 ];
 
 export function LegalModal({ document, onClose }: { document: LegalDocument; onClose: () => void }) {

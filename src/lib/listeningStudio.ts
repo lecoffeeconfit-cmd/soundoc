@@ -11,6 +11,24 @@ export type ListeningStudioSettings = {
   ambienceVolume: number;
 };
 
+export const DEFAULT_AMBIENCE_VOLUME = 0.18;
+
+export const listeningStudioAmbience: Array<{ id: AmbienceType; label: string; icon: string }> = [
+  { id: 'none', label: 'Off', icon: '×' },
+  { id: 'rain', label: 'Rain', icon: '⌁' },
+  { id: 'cafe', label: 'Café', icon: '◌' },
+  { id: 'brown-noise', label: 'Brown noise', icon: '≈' },
+  { id: 'white-noise', label: 'White noise', icon: '≋' },
+  { id: 'fireplace', label: 'Fireplace', icon: '♨' },
+  { id: 'nature', label: 'Nature', icon: '⌇' },
+];
+
+export function normalizeAmbienceType(value: unknown): AmbienceType {
+  return typeof value === 'string' && listeningStudioAmbience.some((option) => option.id === value)
+    ? value as AmbienceType
+    : 'none';
+}
+
 export const defaultListeningStudioSettings: ListeningStudioSettings = {
   enabled: false,
   preset: 'custom',
@@ -37,12 +55,19 @@ export const listeningStudioPresets: Array<{ id: ListeningStudioPresetId; label:
 
 export function studioSettingsFromPreferences(preferences: SpeechPreferences): ListeningStudioSettings {
   const preset = preferences.listeningStudioPreset;
+  const rawVolume = preferences.ambienceVolume;
   return {
     enabled: preferences.listeningStudioEnabled === true,
     preset: preset ?? (preferences.modeId === 'custom' ? 'custom' : 'podcast'),
-    ambienceType: preferences.ambienceType ?? 'none',
-    ambienceVolume: typeof preferences.ambienceVolume === 'number' ? Math.max(0, Math.min(1, preferences.ambienceVolume)) : 0,
+    ambienceType: normalizeAmbienceType(preferences.ambienceType),
+    ambienceVolume: typeof rawVolume === 'number' && Number.isFinite(rawVolume) ? Math.max(0, Math.min(1, rawVolume)) : 0,
   };
+}
+
+export function ambienceSettingsForSelection(type: AmbienceType, currentVolume: number): Pick<SpeechPreferences, 'ambienceType' | 'ambienceVolume'> {
+  if (type === 'none') return { ambienceType: type, ambienceVolume: 0 };
+  const volume = typeof currentVolume === 'number' && Number.isFinite(currentVolume) ? Math.max(0, Math.min(1, currentVolume)) || DEFAULT_AMBIENCE_VOLUME : DEFAULT_AMBIENCE_VOLUME;
+  return { ambienceType: type, ambienceVolume: volume };
 }
 
 export function speechSettingsForStudioPreset(preset: Exclude<ListeningStudioPresetId, 'custom'>): Partial<SpeechPreferences> {

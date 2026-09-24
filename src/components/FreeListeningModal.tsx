@@ -29,9 +29,9 @@ export function FreeListeningModal({ kind, remainingSeconds, resetLabel, readyLi
 const styles = StyleSheet.create({
   backdrop: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(4,6,8,0.68)', padding: space.md },
   safe: { width: '100%', maxWidth: 620, alignSelf: 'center' },
-  card: { padding: space.xl, borderRadius: radius.xlarge, backgroundColor: colors.surfacePrimary, borderWidth: 1, borderTopColor: 'rgba(216,180,90,0.38)', borderBottomColor: 'rgba(0,0,0,0.78)', shadowColor: '#000', shadowOpacity: 0.48, shadowOffset: { width: 0, height: 14 }, shadowRadius: 28, elevation: 12 },
+  card: { padding: space.xl, borderRadius: radius.xlarge, backgroundColor: colors.surfacePrimary, borderWidth: 1, borderTopColor: 'rgba(255,184,107,0.38)', borderBottomColor: 'rgba(0,0,0,0.78)', shadowColor: '#000', shadowOpacity: 0.48, shadowOffset: { width: 0, height: 14 }, shadowRadius: 28, elevation: 12 },
   limitCard: { borderTopColor: 'rgba(255,113,56,0.42)' },
-  icon: { width: 52, height: 52, borderRadius: radius.medium, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(216,180,90,0.16)' },
+  icon: { width: 52, height: 52, borderRadius: radius.medium, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,184,107,0.16)' },
   limitIcon: { backgroundColor: colors.accentSoft },
   iconText: { color: colors.recommendedGoldBright, fontSize: 26, fontWeight: '700' },
   kicker: { ...type.caption, color: colors.recommendedGoldBright, letterSpacing: 1.1, marginTop: space.lg },

@@ -1,5 +1,5 @@
 import * as SQLite from 'expo-sqlite';
-import type { Bookmark, DocumentChapter, DocumentTextChunk, Folder, Highlight, LargeDocumentInfo, LargeDocumentStatus, LibraryItem, Playlist } from '../types';
+import type { Bookmark, DocumentChapter, DocumentTextChunk, Folder, Highlight, LargeDocumentInfo, LargeDocumentStatus, LibraryItem, Playlist, SoundocSection } from '../types';
 import { sectionKindForId, summarizeSectionText } from './sectionIntelligence';
 
 const db = SQLite.openDatabaseSync('soundoc.db');
@@ -33,7 +33,7 @@ export function initializeDatabase() {
   );
   CREATE INDEX IF NOT EXISTS playlist_items_position_idx ON playlist_items(playlist_id, position);`);
   db.execSync(`CREATE TABLE IF NOT EXISTS bookmarks (
-    id TEXT PRIMARY KEY NOT NULL, library_item_id TEXT NOT NULL, section_id TEXT, paragraph_index INTEGER,
+    id TEXT PRIMARY KEY NOT NULL, library_item_id TEXT NOT NULL, section_id TEXT, paragraph_index INTEGER, chunk_index INTEGER,
     sentence_index INTEGER NOT NULL, label TEXT, note TEXT, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL
   );
   CREATE INDEX IF NOT EXISTS bookmarks_item_idx ON bookmarks(library_item_id, sentence_index);
@@ -57,6 +57,7 @@ export function initializeDatabase() {
   CREATE INDEX IF NOT EXISTS document_chunks_document_sequence_idx ON document_chunks(document_id, sequence);
   CREATE INDEX IF NOT EXISTS document_processing_status_idx ON document_processing(status, updated_at);
   `);
+  try { db.execSync('ALTER TABLE bookmarks ADD COLUMN chunk_index INTEGER;'); } catch { /* Existing installs already have the compatibility column. */ }
 }
 
 function toItem(row: Record<string, unknown>): LibraryItem {
@@ -169,6 +170,31 @@ export function getDocumentText(documentId: string) {
     .join('\n\n');
 }
 
+/** Rebuilds usable learning sections from the persisted chunk stream. */
+export function getDocumentSections(documentId: string): SoundocSection[] {
+  const rows = db.getAllSync<{ section_id?: string; section_title?: string; sequence: number; text: string }>(
+    'SELECT section_id, section_title, sequence, text FROM document_chunks WHERE document_id = ? ORDER BY sequence ASC',
+    documentId,
+  );
+  const sections = new Map<string, { id: string; title?: string; order: number; text: string[] }>();
+  rows.forEach((row) => {
+    const id = row.section_id || 'document';
+    const existing = sections.get(id);
+    if (existing) {
+      existing.text.push(row.text);
+      return;
+    }
+    sections.set(id, { id, title: row.section_title || undefined, order: row.sequence, text: row.text ? [row.text] : [] });
+  });
+  return Array.from(sections.values()).map((section) => ({
+    id: section.id,
+    title: section.title,
+    text: section.text.filter(Boolean).join('\n\n'),
+    order: section.order,
+    kind: sectionKindForId(section.id),
+  }));
+}
+
 export function listDocumentChapters(documentId: string): DocumentChapter[] {
   return db.getAllSync<{ document_id: string; section_id: string; section_title: string; sequence: number; first_text?: string }>(`SELECT chunks.document_id, chunks.section_id, chunks.section_title, MIN(chunks.sequence) AS sequence,
     (SELECT first_chunk.text FROM document_chunks first_chunk WHERE first_chunk.document_id = chunks.document_id AND first_chunk.section_id = chunks.section_id ORDER BY first_chunk.sequence ASC LIMIT 1) AS first_text
@@ -223,9 +249,9 @@ export function saveQueueIds(ids: string[]) {
   });
 }
 
-const bookmarkFromRow = (row: Record<string, unknown>): Bookmark => ({ id: String(row.id), libraryItemId: String(row.library_item_id), sectionId: row.section_id ? String(row.section_id) : undefined, paragraphIndex: row.paragraph_index == null ? undefined : Number(row.paragraph_index), sentenceIndex: Number(row.sentence_index), label: row.label ? String(row.label) : undefined, note: row.note ? String(row.note) : undefined, createdAt: Number(row.created_at), updatedAt: Number(row.updated_at) });
+const bookmarkFromRow = (row: Record<string, unknown>): Bookmark => ({ id: String(row.id), libraryItemId: String(row.library_item_id), sectionId: row.section_id ? String(row.section_id) : undefined, paragraphIndex: row.paragraph_index == null ? undefined : Number(row.paragraph_index), chunkIndex: row.chunk_index == null ? undefined : Number(row.chunk_index), sentenceIndex: Number(row.sentence_index), label: row.label ? String(row.label) : undefined, note: row.note ? String(row.note) : undefined, createdAt: Number(row.created_at), updatedAt: Number(row.updated_at) });
 export function listBookmarks(libraryItemId?: string): Bookmark[] { const rows = libraryItemId ? db.getAllSync<Record<string, unknown>>('SELECT * FROM bookmarks WHERE library_item_id = ? ORDER BY sentence_index ASC', libraryItemId) : db.getAllSync<Record<string, unknown>>('SELECT * FROM bookmarks ORDER BY updated_at DESC'); return rows.map(bookmarkFromRow); }
-export function saveBookmark(bookmark: Bookmark) { db.runSync('INSERT OR REPLACE INTO bookmarks (id,library_item_id,section_id,paragraph_index,sentence_index,label,note,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?)', bookmark.id, bookmark.libraryItemId, bookmark.sectionId ?? null, bookmark.paragraphIndex ?? null, bookmark.sentenceIndex, bookmark.label ?? null, bookmark.note ?? null, bookmark.createdAt, bookmark.updatedAt); }
+export function saveBookmark(bookmark: Bookmark) { db.runSync('INSERT OR REPLACE INTO bookmarks (id,library_item_id,section_id,paragraph_index,chunk_index,sentence_index,label,note,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?)', bookmark.id, bookmark.libraryItemId, bookmark.sectionId ?? null, bookmark.paragraphIndex ?? null, bookmark.chunkIndex ?? null, bookmark.sentenceIndex, bookmark.label ?? null, bookmark.note ?? null, bookmark.createdAt, bookmark.updatedAt); }
 export function deleteBookmark(id: string) { db.runSync('DELETE FROM bookmarks WHERE id = ?', id); }
 
 const highlightFromRow = (row: Record<string, unknown>): Highlight => ({ id: String(row.id), libraryItemId: String(row.library_item_id), sectionId: row.section_id ? String(row.section_id) : undefined, startOffset: Number(row.start_offset), endOffset: Number(row.end_offset), text: String(row.text), note: row.note ? String(row.note) : undefined, createdAt: Number(row.created_at), updatedAt: Number(row.updated_at) });

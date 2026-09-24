@@ -62,6 +62,14 @@ const cases = [
     expected: { kind: 'url', value: 'https://example.com/report.pdf' },
   },
   {
+    name: 'accepts a resolved Android website share whose URL is in contentUri',
+    input: {
+      shareType: 'url', value: '', contentType: 'website',
+      contentUri: 'https://example.com/articles/resolved-story',
+    },
+    expected: { kind: 'url', value: 'https://example.com/articles/resolved-story' },
+  },
+  {
     name: 'falls back to a raw file URI when resolution metadata is unavailable',
     input: { shareType: 'file', value: 'file:///tmp/report.pdf', mimeType: 'application/pdf' },
     expected: { kind: 'file', uri: 'file:///tmp/report.pdf', name: 'report.pdf', mimeType: 'application/pdf' },

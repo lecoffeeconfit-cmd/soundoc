@@ -15,9 +15,10 @@ type Props = {
   compact?: boolean;
   accentColor?: string;
   onTrackColor?: string;
+  reduceEffects?: boolean;
 };
 
-export function SoundocToggle({ value, onValueChange, label, disabled = false, onLabel = 'ON', offLabel = 'OFF', accessibilityLabel, accessibilityHint, testID, compact = false, accentColor = colors.accentPrimary, onTrackColor = '#3A241C' }: Props) {
+export function SoundocToggle({ value, onValueChange, label, disabled = false, onLabel = 'ON', offLabel = 'OFF', accessibilityLabel, accessibilityHint, testID, compact = false, accentColor = colors.accentPrimary, onTrackColor = '#3A241C', reduceEffects = false }: Props) {
   const motion = useRef(new Animated.Value(value ? 1 : 0)).current;
   const [reduceMotion, setReduceMotion] = useState(false);
 
@@ -29,14 +30,14 @@ export function SoundocToggle({ value, onValueChange, label, disabled = false, o
   }, []);
 
   useEffect(() => {
-    if (reduceMotion) { motion.setValue(value ? 1 : 0); return; }
+    if (reduceEffects || reduceMotion) { motion.setValue(value ? 1 : 0); return; }
     Animated.spring(motion, { toValue: value ? 1 : 0, useNativeDriver: false, damping: 20, stiffness: 240, mass: 0.75 }).start();
-  }, [motion, reduceMotion, value]);
+  }, [motion, reduceEffects, reduceMotion, value]);
 
   const trackColor = motion.interpolate({ inputRange: [0, 1], outputRange: [colors.backgroundSecondary, onTrackColor] });
   const labelColor = motion.interpolate({ inputRange: [0, 1], outputRange: [colors.textTertiary, accentColor] });
   const knobColor = motion.interpolate({ inputRange: [0, 1], outputRange: [colors.surfacePressed, accentColor] });
-  const knobOnStyle = { borderTopColor: accentColor === colors.success ? '#A4F0BB' : '#FFB083', borderBottomColor: accentColor === colors.success ? '#27884C' : '#A93D20', shadowColor: accentColor };
+  const knobOnStyle = { borderTopColor: accentColor === colors.success ? '#A4F0BB' : accentColor === colors.accentSecondary ? '#B8B0FF' : accentColor === colors.recommendedGold ? colors.recommendedGoldBright : '#FFB083', borderBottomColor: accentColor === colors.success ? '#27884C' : accentColor === colors.accentSecondary ? '#5046B3' : accentColor === colors.recommendedGold ? colors.recommendedGoldDark : '#A93D20', shadowColor: accentColor };
 
   return <View style={[styles.wrap, compact && styles.wrapCompact]}>
     <Pressable

@@ -3,8 +3,8 @@ import { colors, radius, shadows, type } from '../lib/theme';
 import { TactileIconButton } from './TactileIconButton';
 
 export const TAB_BAR_HEIGHT = 76;
-export const TAB_BAR_BASE_BOTTOM_MARGIN = -6;
-export const TAB_BAR_WITH_MINI_PLAYER_BOTTOM_MARGIN = -8;
+export const TAB_BAR_BASE_BOTTOM_MARGIN = -10;
+export const TAB_BAR_WITH_MINI_PLAYER_BOTTOM_MARGIN = -12;
 export const MINI_PLAYER_TAB_BAR_DOCK_HEIGHT = TAB_BAR_HEIGHT + TAB_BAR_WITH_MINI_PLAYER_BOTTOM_MARGIN;
 
 export function PremiumBottomTabBar({ selected, onChange, tabs, hasMiniPlayer, onLayout }: { selected: string; onChange: (id: string) => void; tabs: Array<{ id: string; label: string; icon: string }>; hasMiniPlayer: boolean; onLayout?: (event: LayoutChangeEvent) => void }) {

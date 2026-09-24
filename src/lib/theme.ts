@@ -12,7 +12,8 @@ export const colors = {
   accentPrimary: '#FF7138',
   accentRecording: '#FF3B20',
   accentSecondary: '#7768FF',
-  accentSoft: '#2D2220',
+  // Neutral selected/informational surface; warm color is reserved for actions.
+  accentSoft: '#242A30',
   accentGlow: 'rgba(255,92,36,0.30)',
   successSoft: '#173126',
   switchOff: '#32383F',
@@ -26,13 +27,14 @@ export const colors = {
   completedProgress: '#FF7138',
   remainingProgress: '#292F35',
   glassTint: '#1A1E22',
-  recommendedGold: '#D8B45A',
-  recommendedGoldBright: '#F4D77C',
-  recommendedGoldDark: '#8E6E25',
-  recommendedGoldGlow: 'rgba(216,180,90,0.22)',
+  recommendedGold: '#FFB86B',
+  recommendedGoldBright: '#FFD0A3',
+  recommendedGoldDark: '#A9672E',
+  recommendedGoldGlow: 'rgba(255,184,107,0.22)',
 } as const;
 
 export const space = { xxs: 4, xs: 8, sm: 12, md: 16, lg: 20, xl: 24, xxl: 32, xxxl: 40 } as const;
+export const safeAreaTopBuffer = space.xxs;
 export const radius = { small: 10, medium: 16, large: 22, xlarge: 28, pill: 999 } as const;
 
 export const type = {

@@ -18,12 +18,12 @@ export function revenueCatConfigurationIssue() {
     return 'Soundoc Pro needs a native development build, TestFlight, or the App Store. Purchases are unavailable in Expo Go.';
   }
   if (Platform.OS !== 'ios' && Platform.OS !== 'android') {
-    return 'Subscriptions are available in the Soundoc iOS app.';
+    return 'Subscriptions are available in the native Soundoc app.';
   }
 
   return Platform.OS === 'ios'
     ? 'Soundoc Pro is not configured yet. Add EXPO_PUBLIC_REVENUECAT_IOS_API_KEY to the build environment.'
-    : 'Soundoc Pro is not configured for Android yet.';
+    : 'Soundoc Pro is not configured yet. Add EXPO_PUBLIC_REVENUECAT_ANDROID_API_KEY to the build environment.';
 }
 
 /** Configure RevenueCat exactly once, using the public key for the running store. */

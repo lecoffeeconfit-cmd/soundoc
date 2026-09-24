@@ -1,8 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
 import { AccessibilityInfo, Animated, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { colors, radius, shadows, space, type } from '../lib/theme';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { colors, radius, safeAreaTopBuffer, shadows, space, type } from '../lib/theme';
 import type { SpeechPreferences, Voice } from '../types';
-import { pauseLevelFromPreferences, speechSettingsForPauseLevel, speechSettingsForStudioPreset, studioSettingsFromPreferences, listeningStudioPresets, type ListeningStudioPresetId } from '../lib/listeningStudio';
+import { ambienceSettingsForSelection, listeningStudioAmbience, pauseLevelFromPreferences, speechSettingsForPauseLevel, speechSettingsForStudioPreset, studioSettingsFromPreferences, listeningStudioPresets, type ListeningStudioPresetId } from '../lib/listeningStudio';
+import { useAmbiencePlayer } from '../hooks/useAmbiencePlayer';
 import { MixerChannel } from './MixerChannel';
 import { SoundocToggle } from './SoundocToggle';
 
@@ -28,13 +30,14 @@ export function ListeningStudioModal({ visible, preferences, voices, selectedVoi
     return () => { mounted = false; };
   }, []);
   const studio = studioSettingsFromPreferences(preferences);
+  useAmbiencePlayer({ enabled: studio.enabled, playing, type: studio.ambienceType, volume: studio.ambienceVolume });
   const reducedMotion = reduceMotion || systemReduceMotion;
   useEffect(() => {
     if (reducedMotion) { reveal.setValue(studio.enabled ? 1 : 0); return; }
     Animated.timing(reveal, { toValue: studio.enabled ? 1 : 0, duration: 220, useNativeDriver: true }).start();
   }, [reducedMotion, reveal, studio.enabled]);
   return <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
-    <View style={styles.screen}>
+    <SafeAreaView style={[styles.screen, { paddingTop: safeAreaTopBuffer }]}>
       <View style={styles.header}><View style={styles.headerCopy}><Text style={styles.kicker}>SOUNDoc / MIX</Text><Text style={styles.title}>Listening Studio</Text><Text style={styles.description}>Shape the voice, pacing, pauses, and background sound.</Text></View><Pressable style={styles.headerAction} onPress={onClose} accessibilityLabel="Close Listening Studio" hitSlop={10}><Text style={styles.done}>Done</Text></Pressable></View>
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <View style={styles.toggleCard}><View style={styles.copy}><Text style={styles.cardTitle}>Listening Studio</Text><Text style={styles.cardDescription}>Turn on the mixer when you want more control. Standard playback stays unchanged while it is off.</Text></View><SoundocToggle value={studio.enabled} onValueChange={(enabled) => onUpdateSettings({ listeningStudioEnabled: enabled })} compact accessibilityLabel="Listening Studio" /></View>
@@ -45,20 +48,24 @@ export function ListeningStudioModal({ visible, preferences, voices, selectedVoi
             {listeningStudioPresets.map((preset) => <Pressable key={preset.id} disabled={!studio.enabled || preset.id === 'custom'} onPress={() => { setFocusedPreset(preset.id); if (preset.id !== 'custom') onUpdateSettings(speechSettingsForStudioPreset(preset.id)); }} style={[styles.preset, studio.preset === preset.id && styles.presetSelected]} accessibilityRole="button" accessibilityLabel={`${preset.label} preset${preset.id === 'custom' ? ', selected automatically after manual changes' : ''}`}><Text style={[styles.presetIcon, studio.preset === preset.id && styles.presetTextSelected]}>{preset.icon}</Text><Text style={[styles.presetText, studio.preset === preset.id && styles.presetTextSelected]}>{preset.label}</Text></Pressable>)}
           </ScrollView>
           <View style={styles.mixerCard}><View style={styles.mixerTop}><View><Text style={styles.mixerTitle}>Shape the sound</Text><Text style={styles.mixerSubtitle}>Drag a channel to tune it. Changes apply to narration.</Text></View><Text style={styles.mixerStatus}>{focusedPreset ? 'UPDATED' : studio.enabled ? 'ACTIVE' : 'STANDBY'}</Text></View>
+            <Text style={styles.ambienceLabel}>BACKGROUND SOUND</Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.ambienceRow} accessibilityLabel="Background sound choices">
+              {listeningStudioAmbience.map((option) => <Pressable key={option.id} disabled={!studio.enabled} onPress={() => onUpdateSettings({ ...ambienceSettingsForSelection(option.id, studio.ambienceVolume), listeningStudioPreset: 'custom' })} style={[styles.ambienceOption, studio.ambienceType === option.id && styles.ambienceOptionSelected, !studio.enabled && styles.controlDisabled]} accessibilityRole="button" accessibilityState={{ disabled: !studio.enabled, selected: studio.ambienceType === option.id }} accessibilityLabel={`${option.label} ambience`}><Text style={[styles.ambienceOptionText, studio.ambienceType === option.id && styles.ambienceOptionTextSelected]}>{option.icon} {option.label}</Text></Pressable>)}
+            </ScrollView>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.channelsScroll} accessibilityLabel="Listening Studio mixer">
               <MixerChannel icon="◉" label="Voice" value={50} min={0} max={100} step={1} formatValue={() => voices.find((voice) => voice.identifier === selectedVoice)?.name?.split(' ')[0] ?? 'Auto'} secondary={voices.length ? 'tap to choose' : 'Unavailable'} disabled={!studio.enabled || voices.length === 0} adjustable={false} onChange={() => {}} onPressHeader={onOpenVoicePicker} />
               <MixerChannel icon="»" label="Speed" value={preferences.rate} min={0.75} max={2} step={0.05} formatValue={(value) => `${value.toFixed(2)}×`} disabled={!studio.enabled} onChange={() => {}} onChangeEnd={(value) => { setFocusedPreset('custom'); onUpdateSettings({ rate: value, listeningStudioPreset: 'custom' }); setFocusedPreset(null); }} />
               <MixerChannel icon="∿" label="Pitch" value={preferences.pitch} min={0.8} max={1.2} step={0.01} formatValue={(value) => value.toFixed(2)} secondary="TTS" disabled={!studio.enabled} onChange={() => {}} onChangeEnd={(value) => { setFocusedPreset('custom'); onUpdateSettings({ pitch: value, listeningStudioPreset: 'custom' }); setFocusedPreset(null); }} />
               <MixerChannel icon="⋮" label="Pauses" value={pauseLevelFromPreferences(preferences)} min={0} max={100} step={1} formatValue={(value) => `${Math.round(value)}%`} secondary="spacing" disabled={!studio.enabled} onChange={() => {}} onChangeEnd={(value) => { setFocusedPreset('custom'); onUpdateSettings({ ...speechSettingsForPauseLevel(value), listeningStudioPreset: 'custom' }); setFocusedPreset(null); }} />
               <MixerChannel icon="▮" label="Narration" value={preferences.volume * 100} min={0} max={100} step={1} formatValue={(value) => `${Math.round(value)}%`} secondary="voice level" disabled={!studio.enabled} onChange={() => {}} onChangeEnd={(value) => { setFocusedPreset('custom'); onUpdateSettings({ volume: value / 100, listeningStudioPreset: 'custom' }); setFocusedPreset(null); }} />
-              <MixerChannel icon="≈" label="Ambience" value={0} min={0} max={100} step={1} formatValue={() => 'OFF'} secondary="No audio" disabled onChange={() => {}} />
+              <MixerChannel icon="≈" label="Ambience" value={studio.ambienceVolume * 100} min={0} max={100} step={1} formatValue={(value) => studio.ambienceType === 'none' ? 'OFF' : `${Math.round(value)}%`} secondary={studio.ambienceType === 'none' ? 'choose a sound' : listeningStudioAmbience.find((option) => option.id === studio.ambienceType)?.label ?? 'sound'} disabled={!studio.enabled || studio.ambienceType === 'none'} onChange={() => {}} onChangeEnd={(value) => { setFocusedPreset('custom'); onUpdateSettings({ ambienceVolume: value / 100, listeningStudioPreset: 'custom' }); setFocusedPreset(null); }} />
             </ScrollView>
-            <Text style={styles.mixerFootnote}>Pitch is handled by the current system voice provider. Ambience is reserved for a future audio engine and is intentionally unavailable.</Text>
+            <Text style={styles.mixerFootnote}>Ambience is bundled with Soundoc, loops locally, and follows narration playback. It does not use AI or a network service.</Text>
           </View>
         </Animated.View>
         {!studio.enabled && <View style={styles.offHint}><Text style={styles.offHintIcon}>◌</Text><Text style={styles.offHintText}>The mixer is on standby. Your regular Soundoc narration remains in control.</Text></View>}
       </ScrollView>
-    </View>
+    </SafeAreaView>
   </Modal>;
 }
 
@@ -100,6 +107,13 @@ const styles = StyleSheet.create({
   mixerTitle: { ...type.heading, color: colors.textPrimary },
   mixerSubtitle: { ...type.caption, color: colors.textSecondary, marginTop: 3 },
   mixerStatus: { ...type.caption, color: colors.accentPrimary, letterSpacing: 0.7 },
+  ambienceLabel: { ...type.caption, color: colors.textTertiary, letterSpacing: 0.8, fontSize: 10, marginBottom: space.xs },
+  ambienceRow: { gap: space.xs, paddingBottom: space.md },
+  ambienceOption: { minHeight: 38, paddingHorizontal: 12, borderRadius: radius.pill, backgroundColor: colors.surfaceElevated, borderWidth: 1, borderColor: colors.borderSubtle, justifyContent: 'center' },
+  ambienceOptionSelected: { backgroundColor: colors.accentSoft, borderColor: colors.accentPrimary },
+  ambienceOptionText: { ...type.caption, color: colors.textSecondary },
+  ambienceOptionTextSelected: { color: colors.accentPrimary },
+  controlDisabled: { opacity: 0.45 },
   channelsScroll: { gap: space.sm, paddingHorizontal: 2, paddingBottom: space.xs },
   mixerFootnote: { ...type.caption, color: colors.textTertiary, lineHeight: 17, marginTop: space.sm },
   meterCard: { padding: space.md, borderRadius: radius.large, backgroundColor: colors.surfaceInset, borderWidth: 1, borderTopColor: 'rgba(255,255,255,0.06)', borderBottomColor: 'rgba(0,0,0,0.72)' },

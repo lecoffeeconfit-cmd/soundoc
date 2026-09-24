@@ -1,6 +1,6 @@
 import type { PropsWithChildren } from 'react';
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
-import { AppState, Linking } from 'react-native';
+import { AppState, Linking, Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Purchases, { type CustomerInfo, INTRO_ELIGIBILITY_STATUS, type IntroEligibility, type PurchasesOffering, type PurchasesPackage } from 'react-native-purchases';
 import { consumeFreeListeningUsage, createFreeListeningUsage, FREE_LISTENING_STORAGE_KEY, freeListeningResetLabel, freeUsagePercent, localWeekResetDate, normalizeFreeListeningUsage, type FreeListeningUpdate, type FreeListeningUsage, validateFreeListeningUsage } from '../lib/freeListening';
@@ -51,6 +51,7 @@ type SubscriptionContextValue = {
 
 const SubscriptionContext = createContext<SubscriptionContextValue | null>(null);
 const DAY_MS = 24 * 60 * 60 * 1000;
+const subscriptionStore = Platform.OS === 'android' ? 'Google Play' : 'App Store';
 
 function futureDaysRemaining(expirationDate: string | null, now = Date.now()) {
   if (!expirationDate) return null;
@@ -59,8 +60,13 @@ function futureDaysRemaining(expirationDate: string | null, now = Date.now()) {
   return Math.ceil(milliseconds / DAY_MS);
 }
 
-function findPackage(offering: PurchasesOffering | null, identifier: string) {
-  return offering?.availablePackages.find((item) => item.identifier === identifier) ?? null;
+function findPackage(offering: PurchasesOffering | null, identifier: string, packageType: 'monthly' | 'annual') {
+  // Keep the explicit Soundoc package IDs as the primary mapping, but fall back
+  // to RevenueCat's standard package slots so renamed package identifiers do
+  // not make otherwise valid StoreKit prices disappear from the paywall.
+  return offering?.availablePackages.find((item) => item.identifier === identifier)
+    ?? offering?.[packageType]
+    ?? null;
 }
 
 export function isConfirmedFreeTrial(packageToCheck: PurchasesPackage | null, eligibility: Record<string, IntroEligibility>) {
@@ -94,8 +100,8 @@ export function SubscriptionProvider({ children }: PropsWithChildren) {
   const subscriptionExpirationDate = activeEntitlement?.expirationDate ?? null;
   const trialExpirationDate = isTrialing ? subscriptionExpirationDate : null;
   const trialStartDate = isTrialing ? activeEntitlement?.originalPurchaseDate ?? null : null;
-  const monthlyPackage = findPackage(currentOffering, REVENUECAT_MONTHLY_PACKAGE_ID);
-  const annualPackage = findPackage(currentOffering, REVENUECAT_ANNUAL_PACKAGE_ID);
+  const monthlyPackage = findPackage(currentOffering, REVENUECAT_MONTHLY_PACKAGE_ID, 'monthly');
+  const annualPackage = findPackage(currentOffering, REVENUECAT_ANNUAL_PACKAGE_ID, 'annual');
   // Free usage does not exist during Pro or its trial. It begins only after the entitlement ends.
   const isFree = isInitialized && !isPro && !isTrialing && (hasResolvedEntitlement || !configured.current);
   const isPlaybackAccessReady = !isFree || freeUsageRef.current !== null;
@@ -146,14 +152,23 @@ export function SubscriptionProvider({ children }: PropsWithChildren) {
 
   const loadOffering = useCallback(async () => {
     const offerings = await Purchases.getOfferings();
-    const offering = offerings.current?.identifier === REVENUECAT_OFFERING_ID
-      ? offerings.current
-      : offerings.all[REVENUECAT_OFFERING_ID] ?? null;
+    const offering = offerings.all[REVENUECAT_OFFERING_ID]
+      ?? offerings.current
+      ?? null;
     setCurrentOffering(offering);
 
     const productIdentifiers = offering?.availablePackages.map((item) => item.product.identifier) ?? [];
     setTrialEligibility(productIdentifiers.length ? await Purchases.checkTrialOrIntroductoryPriceEligibility(productIdentifiers) : {});
   }, []);
+
+  const refreshOfferings = useCallback(async () => {
+    if (!configured.current) return;
+    try {
+      await loadOffering();
+    } catch (refreshError) {
+      setError(messageForRevenueCatError(refreshError));
+    }
+  }, [loadOffering]);
 
   const refreshCustomerInfo = useCallback(async () => {
     if (!configured.current) return;
@@ -197,10 +212,10 @@ export function SubscriptionProvider({ children }: PropsWithChildren) {
 
   useEffect(() => {
     const subscription = AppState.addEventListener('change', (nextState) => {
-      if (nextState === 'active') void refreshCustomerInfo();
+      if (nextState === 'active') void Promise.all([refreshCustomerInfo(), refreshOfferings()]);
     });
     return () => subscription.remove();
-  }, [refreshCustomerInfo]);
+  }, [refreshCustomerInfo, refreshOfferings]);
 
   const refreshFreeListeningUsage = useCallback(() => {
     if (!isFree) return;
@@ -322,7 +337,7 @@ export function SubscriptionProvider({ children }: PropsWithChildren) {
       const restored = restoredInfo.entitlements.active[REVENUECAT_ENTITLEMENT_ID]?.isActive === true;
       setNotice(restored
         ? { title: 'Purchases restored', message: 'Soundoc Pro is active on this device.' }
-        : { title: 'Nothing to restore', message: 'We could not find an active Soundoc Pro subscription for this App Store account.' });
+        : { title: 'Nothing to restore', message: `We could not find an active Soundoc Pro subscription for this ${subscriptionStore} account.` });
       return restored;
     } catch (restoreError) {
       setError(messageForRevenueCatError(restoreError));
@@ -335,21 +350,22 @@ export function SubscriptionProvider({ children }: PropsWithChildren) {
   const openSubscriptionManagement = useCallback(async () => {
     const managementURL = customerInfo?.managementURL;
     if (!managementURL) {
-      setNotice({ title: 'No subscription to manage', message: 'An App Store management link will appear here while Soundoc Pro is active.' });
+      setNotice({ title: 'No subscription to manage', message: `A ${subscriptionStore} management link will appear here while Soundoc Pro is active.` });
       return;
     }
     try {
       await Linking.openURL(managementURL);
     } catch {
-      setError('Couldn’t open App Store subscription management. Please try again.');
+      setError(`Couldn’t open ${subscriptionStore} subscription management. Please try again.`);
     }
   }, [customerInfo?.managementURL]);
 
   const openPaywall = useCallback(() => {
     setError(null);
     setIsPaywallVisible(true);
+    if (configured.current && !currentOffering) void refreshOfferings();
     if (configured.current && currentOffering) void Purchases.trackCustomPaywallImpression({ offering: currentOffering }).catch(() => undefined);
-  }, [currentOffering]);
+  }, [currentOffering, refreshOfferings]);
   const closePaywall = useCallback(() => setIsPaywallVisible(false), []);
   const requirePro = useCallback((onAllowed?: () => void) => {
     if (!isInitialized) {

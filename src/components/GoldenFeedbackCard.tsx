@@ -25,7 +25,7 @@ function ReasonButton({ label, onPress }: { label: string; onPress: () => void }
 const styles = StyleSheet.create({
   card: { marginTop: space.sm, padding: space.md, borderRadius: radius.large, backgroundColor: colors.surfaceElevated, borderWidth: 1, borderColor: colors.recommendedGoldDark },
   header: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
-  icon: { width: 32, height: 32, borderRadius: radius.small, backgroundColor: 'rgba(216,180,90,0.14)', alignItems: 'center', justifyContent: 'center' },
+  icon: { width: 32, height: 32, borderRadius: radius.small, backgroundColor: 'rgba(255,184,107,0.14)', alignItems: 'center', justifyContent: 'center' },
   iconText: { color: colors.recommendedGoldBright, fontSize: 16 },
   copy: { flex: 1, minWidth: 0 },
   title: { ...type.heading, color: colors.textPrimary },
@@ -55,7 +55,7 @@ const styles = StyleSheet.create({
   reason: { minHeight: 38, paddingHorizontal: space.sm, borderRadius: radius.pill, backgroundColor: colors.surfaceInset, borderWidth: 1, borderColor: colors.borderSubtle, alignItems: 'center', justifyContent: 'center' },
   reasonText: { ...type.caption, color: colors.textSecondary },
   pressed: { opacity: 0.78 },
-  attachedCard: { marginTop: 0, marginHorizontal: 0, paddingTop: space.lg, paddingHorizontal: space.md, paddingBottom: space.md, borderRadius: 0, backgroundColor: colors.surfaceInset, borderWidth: 0, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: 'rgba(216,180,90,0.28)', shadowOpacity: 0, elevation: 0, zIndex: 0 },
+  attachedCard: { marginTop: 0, marginHorizontal: 0, paddingTop: space.lg, paddingHorizontal: space.md, paddingBottom: space.md, borderRadius: 0, backgroundColor: colors.surfaceInset, borderWidth: 0, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: 'rgba(255,184,107,0.28)', shadowOpacity: 0, elevation: 0, zIndex: 0 },
   attachedHeader: { gap: space.xs },
   attachedIcon: { width: 28, height: 28, borderRadius: 9 },
   attachedTitle: { fontSize: 14, lineHeight: 18 },

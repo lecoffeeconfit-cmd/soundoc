@@ -45,9 +45,12 @@ function normalizedFilePayload(payload: IncomingSharePayload, kind: 'file' | 'im
 
 export function normalizeIncomingSharePayload(payload: IncomingSharePayload): NormalizedSharePayload | null {
   const value = typeof payload.value === 'string' ? payload.value.trim() : '';
-  if (payload.shareType === 'url') {
-    if (!value) return null;
-    const url = safePublicUrl(value);
+  if (payload.shareType === 'url' || payload.contentType === 'website') {
+    // Resolved Android shares can classify a URL as a website and put the final URL
+    // in contentUri, while raw shares put it in value. Accept both forms.
+    const candidate = value || (typeof payload.contentUri === 'string' ? payload.contentUri.trim() : '');
+    if (!candidate) return null;
+    const url = safePublicUrl(candidate);
     return url ? { kind: 'url', value: url.toString() } : null;
   }
   if (payload.shareType === 'text') return value ? { kind: 'text', value } : null;
