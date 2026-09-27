@@ -99,7 +99,7 @@
     ],
     "android": {
       "package": "com.lecoffeeconfit.soundoc",
-      "versionCode": 1,
+      "versionCode": 3,
       "permissions": [
         "android.permission.CAMERA"
       ],
